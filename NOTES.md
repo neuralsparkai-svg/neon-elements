@@ -15,7 +15,10 @@ Quick reference for whoever maintains/deploys Atomica.
 | `icon-192.png`, `icon-512.png` | App icons (Android / manifest) — neon "A" atom mark |
 | `apple-touch-icon.png` | iOS home-screen icon (180×180) |
 | `logo.svg` | Animated brand logo (atom + wordmark) |
+| `img/el-*.jpg` | Element Spotlight backgrounds (web-optimized ~210 KB each; source PNGs live in project `Images/`) |
 | `qr.png` | QR code pointing at the live URL |
+
+**To add a Spotlight for a new element:** drop a 16:9 themed image in `Images/`, re-encode it to `site/img/el-<symbol>.jpg` (the PowerShell optimizer used ~1600px wide, JPEG q82), and add an entry to the `SPOTLIGHTS` map in the game (`img`, `what`, `real`). That's it.
 | `README.md` | Public README |
 | `NOTES.md` | This file |
 
@@ -41,6 +44,7 @@ curl -s https://neuralsparkai-svg.github.io/neon-elements/ | grep -o '<title>[^<
 - Fun-fact flash + **Study Mode** (auto-pause to read)
 - **4 modes:** Fun Facts · Find the Element · Element Groups · Collection Quest
 - **Between-wave quizzes** (4 question types: symbol↔name, group membership, fun-fact recall; +25 bonus; On/Off setting)
+- **Element Spotlights** — cinematic full-screen reveal (real-world themed bg + what-it-is + real-world tie-in) on first hit of a featured element. Shipped for C, O, Ne, Fe, Cu, Au. On/Off setting.
 - Difficulty (Easy/Normal/Hard), **Aim Assist**, mute, per-mode high scores
 - **Mobile build:** DPR-crisp rendering, responsive layout, dual-thumb touch + aim assist, safe-area, fullscreen button
 - **Installable PWA:** manifest + icons (Add to Home Screen, full-screen)

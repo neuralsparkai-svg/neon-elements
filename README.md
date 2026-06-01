@@ -41,6 +41,7 @@ It's the feeling of an arcade survival game, with the periodic table doing the t
 - 🧪 **All 118 elements**, weighted so famous ones (H, O, Fe, Au…) appear most, but every element can show up.
 - 📖 **Study Mode** — auto-pauses on each hit so you can actually read the fact, then resume.
 - ❓ **Between-wave quizzes** — a quick multiple-choice question after every wave (symbol ↔ name, element groups, fun-fact recall) for bonus points. Toggle on/off.
+- 🎇 **Element Spotlights** — the first time you blast a *featured* element, a **cinematic full-screen reveal** plays: a real-world, element-themed background (Gold's vault, Carbon's diamonds, Neon's glowing tubes…) with what it is and its real-world connection. (6 elements shipped; extends to all 118.)
 - 🎚️ **Difficulty** (Easy / Normal / Hard) and **Aim Assist** for younger players.
 - 🎵 **Generated neon soundtrack + sound effects** — no audio files, zero load time.
 - 🏆 **High scores** saved per mode, and a **"collect all 118"** progress board.
