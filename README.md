@@ -33,6 +33,17 @@ It's the feeling of an arcade survival game, with the periodic table doing the t
 
 ---
 
+## 🆕 What's new — June 2026
+
+**Cinematic Element Spotlights.** The first blast of a featured element now plays a full-screen reveal:
+
+- 🌀 **Orb-morph transition** — the blasted orb flies to center and grows into the element badge, with a flash that masks the cut into the reveal.
+- 🎇 **Per-element themed particle FX** — gold sparks, diamond glints, neon wisps, forge embers, rising oxygen bubbles, and more, each on its own layer.
+- 🔊 **Signature synthesized stings** — every spotlight lands with its own sound (gold's metallic ching, neon's electric whoosh, iron's forge clang…); music ducks under the spotlight so the sting always cuts through.
+- 🧪 **16 elements shipped** — H, He, Li, C, O, Ne, Mg, Al, Si, Cl, Ca, Fe, Cu, Ag, Hg, Au — with images that lazy-load, adding zero startup cost.
+
+---
+
 ## ✨ What it does
 
 - 🎮 **Four game modes**, each teaching the table a different way (see below).
