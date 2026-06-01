@@ -268,6 +268,32 @@
   .study-note { font-size: 12px; color: #9b8cff; max-width: 520px; }
 
   /* ============================================================
+     BETWEEN-WAVE QUIZ
+     ============================================================ */
+  .quiz-q {
+    font-size: clamp(19px, 5vw, 30px); font-weight: 800; color: #fff;
+    max-width: 700px; line-height: 1.35; text-shadow: 0 0 14px #00eaff;
+  }
+  .quiz-opts {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    width: min(560px, 92vw); margin-top: 4px;
+  }
+  .quiz-opt {
+    pointer-events: auto; cursor: pointer; font-family: inherit;
+    font-size: clamp(16px, 4.4vw, 22px); font-weight: bold; color: #fff;
+    padding: 16px 14px; border-radius: 14px;
+    background: rgba(20,10,48,0.85); border: 2px solid rgba(120,90,255,0.5);
+    transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .quiz-opt:active { transform: scale(0.96); }
+  .quiz-opt.correct { background: rgba(57,255,20,0.25); border-color: #39ff14; box-shadow: 0 0 22px rgba(57,255,20,0.5); }
+  .quiz-opt.wrong   { background: rgba(255,43,109,0.25); border-color: #ff2b6d; box-shadow: 0 0 22px rgba(255,43,109,0.5); }
+  @media (hover: hover) { .quiz-opt:hover { border-color: #00eaff; background: rgba(30,15,60,0.95); } }
+  .quiz-feedback { font-size: clamp(16px, 4vw, 22px); font-weight: bold; min-height: 28px; }
+  .quiz-feedback.ok { color: #39ff14; text-shadow: 0 0 12px #39ff14; }
+  .quiz-feedback.no { color: #ff7b9c; text-shadow: 0 0 12px #ff2b6d; }
+
+  /* ============================================================
      RESPONSIVE + TOUCH POLISH (the mobile conversion lives here)
      Later in the stylesheet = these win over the desktop defaults.
      ============================================================ */
@@ -415,6 +441,13 @@
       </div>
     </div>
     <div class="setting">
+      <span class="setting-label">Quiz</span>
+      <div class="seg" id="quizSeg">
+        <button data-quiz="on">On</button>
+        <button data-quiz="off">Off</button>
+      </div>
+    </div>
+    <div class="setting">
       <span class="setting-label">Sound</span>
       <div class="seg" id="soundSeg">
         <button data-sound="on">🔊 On</button>
@@ -439,6 +472,15 @@
   <div id="pauseFact"></div>
   <button class="play-btn" id="resumeBtn">▶ RESUME</button>
   <div class="hint">Press <b>P</b> or <b>Esc</b> to resume</div>
+</div>
+
+<!-- BETWEEN-WAVE QUIZ SCREEN -->
+<div id="quizScreen" class="overlay hidden">
+  <div class="pause-tag">WAVE <span id="quizWave">2</span> · QUICK QUIZ</div>
+  <div class="quiz-q" id="quizQ"></div>
+  <div class="quiz-opts" id="quizOpts"></div>
+  <div class="quiz-feedback" id="quizFeedback"></div>
+  <button class="play-btn" id="quizContinue" style="display:none;">▶ CONTINUE</button>
 </div>
 
 <!-- GAME OVER SCREEN -->
@@ -741,6 +783,12 @@ const newHighEl    = document.getElementById("newHigh");
 const bestLine     = document.getElementById("bestLine");
 const muteBtn      = document.getElementById("muteBtn");
 const fullBtn      = document.getElementById("fullBtn");
+const quizScreen   = document.getElementById("quizScreen");
+const quizWaveEl   = document.getElementById("quizWave");
+const quizQEl      = document.getElementById("quizQ");
+const quizOptsEl   = document.getElementById("quizOpts");
+const quizFeedbackEl = document.getElementById("quizFeedback");
+const quizContinueBtn = document.getElementById("quizContinue");
 
 const keys = {};
 addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -750,9 +798,13 @@ addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; }
 addEventListener("mousedown", e => { if (e.button === 0) mouse.down = true; });
 addEventListener("mouseup",   e => { if (e.button === 0) mouse.down = false; });
 addEventListener("contextmenu", e => e.preventDefault());
-// Pause / resume with P or Esc.
+// Pause / resume with P or Esc. During a quiz, those keys continue (once answered).
 addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
+  if (quizActive) {
+    if (k === "p" || k === "escape" || k === "enter" || k === " ") resumeFromQuiz();
+    return;
+  }
   if ((k === "p" || k === "escape") && running) togglePause();
 });
 
@@ -816,6 +868,7 @@ let score = 0, health = 3, wave = 1, frame = 0, shootCooldown = 0;
 let bullets = [], orbs = [], particles = [];
 let lastFact = null;             // last element destroyed (shown big on pause)
 let target = null;               // current target element (Find mode)
+let quizActive = false, quizAnswered = false, currentQuiz = null;  // between-wave quiz state
 const discovered = new Set();    // atomic numbers collected (Collection mode)
 
 // Per-mode high scores, saved in the browser so they persist between visits.
@@ -828,16 +881,18 @@ let difficulty = "normal";   // "easy" | "normal" | "hard"
 let studyMode = false;       // auto-pause on each destroy to read the fact
 let muted = false;           // all sound + speech off
 let aimAssist = true;        // nudge shots toward the nearest orb (great for kids/touch)
+let quizzes = true;          // show a quick quiz between waves
 try {
   const s = JSON.parse(localStorage.getItem("neonElementsSettings") || "{}");
   if (s.difficulty) difficulty = s.difficulty;
   if (typeof s.studyMode === "boolean") studyMode = s.studyMode;
   if (typeof s.muted === "boolean") muted = s.muted;
   if (typeof s.aimAssist === "boolean") aimAssist = s.aimAssist;
+  if (typeof s.quizzes === "boolean") quizzes = s.quizzes;
 } catch (e) {}
 function saveSettings() {
   try { localStorage.setItem("neonElementsSettings",
-    JSON.stringify({ difficulty, studyMode, muted, aimAssist })); } catch (e) {}
+    JSON.stringify({ difficulty, studyMode, muted, aimAssist, quizzes })); } catch (e) {}
 }
 
 // Difficulty tuning: orb speed multiplier + spawn-rate multiplier.
@@ -1044,7 +1099,11 @@ function update() {
   // Spawning + waves.
   const spawnEvery = Math.max(14, Math.round((70 - wave * 5) * DIFF[difficulty].spawnMul));  // difficulty scales spawn rate
   if (frame % spawnEvery === 0) spawnOrb();
-  if (frame % 720 === 0) { wave++; waveValueEl.textContent = wave; }
+  if (frame % 720 === 0) {
+    wave++; waveValueEl.textContent = wave;
+    if (quizzes) triggerQuiz();           // pop a quick between-wave quiz
+  }
+  if (paused) return;   // a quiz (or pause) just opened — stop the rest of this frame
 
   // Move orbs toward player.
   for (const o of orbs) {
@@ -1119,6 +1178,109 @@ function studyPause() {
   showPauseScreen();
 }
 
+/* ================================================================
+   BETWEEN-WAVE QUIZ — a quick multiple-choice question each time you
+   clear a wave. Reinforces what you've been blasting, with a bonus.
+   ================================================================ */
+function qShuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+// Pick n random elements not in the excluded atomic-number set.
+function qDistinct(pool, excludeNums, n) {
+  const out = [], seen = new Set(excludeNums);
+  let guard = 0;
+  while (out.length < n && guard++ < 600) {
+    const e = pool[Math.floor(Math.random() * pool.length)];
+    if (!seen.has(e.n)) { seen.add(e.n); out.push(e); }
+  }
+  return out;
+}
+// Build one question. Options are {label, correct}. Kept friendly by
+// drawing correct answers from the well-known "common" elements.
+function buildQuizQuestion() {
+  const pool = COMMON_ELEMENTS;
+  const factPool = ELEMENTS.filter(e => FACTS[e.s]);
+  const type = Math.floor(Math.random() * 4);
+
+  if (type === 0) {                                  // symbol for a name
+    const el = pool[Math.floor(Math.random() * pool.length)];
+    const opts = qShuffle([el, ...qDistinct(ELEMENTS, [el.n], 3)])
+      .map(e => ({ label: e.s, correct: e.n === el.n }));
+    return { q: `Which symbol stands for ${el.name}?`, opts, speak: el.name };
+  }
+  if (type === 1) {                                  // name for a symbol
+    const el = pool[Math.floor(Math.random() * pool.length)];
+    const opts = qShuffle([el, ...qDistinct(ELEMENTS, [el.n], 3)])
+      .map(e => ({ label: e.name, correct: e.n === el.n }));
+    return { q: `Which element has the symbol “${el.s}”?`, opts, speak: el.name };
+  }
+  if (type === 2) {                                  // which one is in a group
+    const cats = ["alkali", "alkaline", "noble", "halogen", "nonmetal", "transition", "post"];
+    const cat = cats[Math.floor(Math.random() * cats.length)];
+    const inCat = pool.filter(e => categoryOf(e.n) === cat);
+    const el = inCat[Math.floor(Math.random() * inCat.length)];
+    const ds = qShuffle(pool.filter(e => categoryOf(e.n) !== cat)).slice(0, 3);
+    const opts = qShuffle([el, ...ds]).map(e => ({ label: e.name, correct: e.n === el.n }));
+    return { q: `Which of these is a ${CATS[cat].label}?`, opts, speak: el.name };
+  }
+  const el = factPool[Math.floor(Math.random() * factPool.length)];  // fact -> element
+  const opts = qShuffle([el, ...qDistinct(ELEMENTS, [el.n], 3)])
+    .map(e => ({ label: e.name, correct: e.n === el.n }));
+  return { q: `Which element is this? “${FACTS[el.s]}”`, opts, speak: el.name };
+}
+
+function triggerQuiz() {
+  currentQuiz = buildQuizQuestion();
+  quizActive = true; quizAnswered = false; paused = true;
+  if (actx) actx.suspend();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+
+  quizWaveEl.textContent = wave;
+  quizQEl.textContent = currentQuiz.q;
+  quizFeedbackEl.textContent = ""; quizFeedbackEl.className = "quiz-feedback";
+  quizContinueBtn.style.display = "none";
+  quizOptsEl.innerHTML = "";
+  currentQuiz.opts.forEach((o, i) => {
+    const b = document.createElement("button");
+    b.className = "quiz-opt"; b.textContent = o.label;
+    b.addEventListener("click", () => answerQuiz(i, b));
+    quizOptsEl.appendChild(b);
+  });
+  quizScreen.classList.remove("hidden");
+}
+
+function answerQuiz(idx, btn) {
+  if (quizAnswered) return;
+  quizAnswered = true;
+  const buttons = quizOptsEl.querySelectorAll(".quiz-opt");
+  buttons.forEach((b, i) => {
+    b.disabled = true;
+    if (currentQuiz.opts[i].correct) b.classList.add("correct");  // always reveal the answer
+  });
+  if (currentQuiz.opts[idx].correct) {
+    score += 25; scoreValueEl.textContent = score;
+    quizFeedbackEl.textContent = "✓ Correct!  +25";
+    quizFeedbackEl.className = "quiz-feedback ok";
+    sfxCorrect();
+  } else {
+    btn.classList.add("wrong");
+    quizFeedbackEl.textContent = "✗ It's " + currentQuiz.opts.find(o => o.correct).label;
+    quizFeedbackEl.className = "quiz-feedback no";
+    sfxHit();
+  }
+  if (currentQuiz.speak) speak(currentQuiz.speak);   // hear the right answer
+  quizContinueBtn.style.display = "";
+}
+
+function resumeFromQuiz() {
+  if (!quizAnswered) return;            // must answer first
+  quizScreen.classList.add("hidden");
+  quizActive = false; currentQuiz = null;
+  paused = false;
+  if (actx) actx.resume();
+}
+
 function showFact(el) {
   factEl.innerHTML = `<b>${el.s} · ${el.name}</b><span>${factFor(el)}</span>`;
   factEl.classList.remove("show"); void factEl.offsetWidth; factEl.classList.add("show");
@@ -1187,6 +1349,7 @@ function loop() {
 
 // --- PAUSE: freeze play and show the fun fact big and readable ---
 function togglePause() {
+  if (quizActive) return;        // the quiz manages its own pause
   paused = !paused;
   if (paused) {
     if (actx) actx.suspend();                       // pause the music
@@ -1230,6 +1393,8 @@ function startGame(mode) {
   gameOverScreen.classList.add("hidden");
   pauseScreen.classList.add("hidden");
   celebrateScreen.classList.add("hidden");
+  quizScreen.classList.add("hidden");
+  quizActive = false; quizAnswered = false; currentQuiz = null;
   paused = false; running = true;
 }
 function endGame() {
@@ -1293,11 +1458,12 @@ function refreshSettingsUI() {
   const mark = (segId, val) => document.querySelectorAll("#" + segId + " button")
     .forEach(b => b.classList.toggle("active",
       b.dataset.diff === val || b.dataset.study === val ||
-      b.dataset.sound === val || b.dataset.assist === val));
+      b.dataset.sound === val || b.dataset.assist === val || b.dataset.quiz === val));
   mark("diffSeg", difficulty);
   mark("studySeg", studyMode ? "on" : "off");
   mark("soundSeg", muted ? "off" : "on");
   mark("assistSeg", aimAssist ? "on" : "off");
+  mark("quizSeg", quizzes ? "on" : "off");
   muteBtn.textContent = muted ? "🔇" : "🔊";        // HUD icon reflects state
 }
 document.querySelectorAll("#diffSeg button").forEach(b =>
@@ -1308,6 +1474,9 @@ document.querySelectorAll("#soundSeg button").forEach(b =>
   b.addEventListener("click", () => { setMuted(b.dataset.sound === "off"); refreshSettingsUI(); saveSettings(); }));
 document.querySelectorAll("#assistSeg button").forEach(b =>
   b.addEventListener("click", () => { aimAssist = (b.dataset.assist === "on"); refreshSettingsUI(); saveSettings(); }));
+document.querySelectorAll("#quizSeg button").forEach(b =>
+  b.addEventListener("click", () => { quizzes = (b.dataset.quiz === "on"); refreshSettingsUI(); saveSettings(); }));
+quizContinueBtn.addEventListener("click", resumeFromQuiz);
 // HUD sound button toggles mute during play.
 muteBtn.addEventListener("click", () => { setMuted(!muted); refreshSettingsUI(); saveSettings(); });
 
