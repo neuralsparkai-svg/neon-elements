@@ -44,7 +44,7 @@ curl -s https://neuralsparkai-svg.github.io/neon-elements/ | grep -o '<title>[^<
 - Fun-fact flash + **Study Mode** (auto-pause to read)
 - **4 modes:** Fun Facts · Find the Element · Element Groups · Collection Quest
 - **Between-wave quizzes** (4 question types: symbol↔name, group membership, fun-fact recall; +25 bonus; On/Off setting)
-- **Element Spotlights** — cinematic full-screen reveal (real-world themed bg + what-it-is + real-world tie-in) on first hit of a featured element. Shipped for C, O, Ne, Fe, Cu, Au. On/Off setting.
+- **Element Spotlights** — cinematic full-screen reveal on first hit of a featured element: **orb-morph transition** (orb flies to center → grows into badge → flash) + **themed particle FX** (per-element: spark/sparkle/wisp/ember/bubble, own canvas+rAF) + real-world themed bg + what-it-is + real-world tie-in. Shipped for C, O, Ne, Fe, Cu, Au. On/Off setting.
 - Difficulty (Easy/Normal/Hard), **Aim Assist**, mute, per-mode high scores
 - **Mobile build:** DPR-crisp rendering, responsive layout, dual-thumb touch + aim assist, safe-area, fullscreen button
 - **Installable PWA:** manifest + icons (Add to Home Screen, full-screen)
