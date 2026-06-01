@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>NEON ELEMENTS — Periodic Table Blaster!</title>
+<!-- Install / Add-to-Home-Screen: makes it launch full-screen like a native app -->
+<meta name="theme-color" content="#05030f" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Neon Elements" />
+<meta name="description" content="A neon arcade game: blast glowing periodic-table elements, hear them spoken, and learn fun facts." />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<style>
+  /* ============================================================
+     GLOBAL PAGE STYLES
+     ============================================================ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100vh; height: 100dvh;        /* dvh = stable height as the URL bar hides */
+    background: #05030f; overflow: hidden;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif; color: #fff;
+    user-select: none; cursor: crosshair;
+    overscroll-behavior: none;                              /* no pull-to-refresh / bounce */
+    -webkit-tap-highlight-color: transparent;               /* no gray flash on tap */
+    -webkit-user-select: none; -webkit-touch-callout: none; /* no long-press menu */
+  }
+  /* touch-action:none on the play surface (not body) so menu overlays can still scroll. */
+  #game { display: block; position: absolute; inset: 0; touch-action: none; }
+  #hud { touch-action: none; }
+  .overlay { touch-action: pan-y; }   /* allow vertical scroll inside menus on small phones */
+
+  /* ============================================================
+     HUD — score + mode + pause + health
+     ============================================================ */
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    /* Respect the notch / rounded corners on phones via safe-area insets. */
+    padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             0 max(16px, env(safe-area-inset-left));
+    pointer-events: none; z-index: 5;
+  }
+  .hud-panel {
+    background: rgba(10, 6, 30, 0.45);
+    border: 1px solid rgba(120, 90, 255, 0.4);
+    border-radius: 14px; padding: 10px 18px;
+    backdrop-filter: blur(4px); box-shadow: 0 0 22px rgba(120, 90, 255, 0.25);
+  }
+  .label { font-size: 12px; letter-spacing: 3px; color: #9b8cff; text-transform: uppercase; }
+  #scoreValue { font-size: clamp(22px, 6vw, 32px); font-weight: bold; text-shadow: 0 0 12px #00eaff, 0 0 22px #00eaff; }
+  #modeBadge { font-size: 13px; color: #00eaff; margin-top: 2px; }
+  #waveValue { font-size: 18px; color: #ff7bf0; text-shadow: 0 0 10px #ff2bd6; }
+  #hearts { display: flex; gap: 10px; margin-top: 6px; justify-content: flex-end; }
+  .heart {
+    width: 46px; height: 16px; border-radius: 8px;
+    background: linear-gradient(90deg, #ff2b6d, #ff7b3d);
+    box-shadow: 0 0 14px #ff2b6d, 0 0 26px #ff2b6d; transition: all 0.25s ease;
+  }
+  .heart.lost { background: rgba(255,255,255,0.08); box-shadow: none; transform: scaleX(0.85); }
+
+  /* Row of icon buttons (pause / sound / fullscreen) — generous tap targets */
+  #hudBtns { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+  .icon-btn {
+    pointer-events: auto; cursor: pointer;
+    width: 40px; height: 40px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center; font-size: 19px;
+    background: rgba(120,90,255,0.25); border: 1px solid rgba(120,90,255,0.6);
+    transition: transform 0.12s ease, background 0.15s ease;
+  }
+  body.is-touch .icon-btn { width: 46px; height: 46px; font-size: 21px; }  /* ≥44px on touch */
+  .icon-btn:active { transform: scale(0.9); }
+
+  /* ============================================================
+     MODE-SPECIFIC PANELS
+     ============================================================ */
+  .panel-hidden { display: none !important; }
+
+  /* "Find the Element" target pill (top-center) */
+  #targetPanel {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    background: rgba(10,6,30,0.6); border: 1px solid rgba(255,174,0,0.6);
+    border-radius: 30px; padding: 8px 22px; z-index: 6; font-size: 18px;
+    box-shadow: 0 0 22px rgba(255,174,0,0.4); pointer-events: none;
+  }
+  #targetPanel b { font-size: 22px; color: #ffae00; text-shadow: 0 0 12px #ffae00; }
+
+  /* Category legend (bottom-left) */
+  #legendPanel {
+    position: absolute; bottom: 18px; left: 18px; z-index: 6;
+    background: rgba(10,6,30,0.55); border: 1px solid rgba(120,90,255,0.4);
+    border-radius: 14px; padding: 12px 16px; pointer-events: none; backdrop-filter: blur(4px);
+  }
+  #legendPanel .label { margin-bottom: 8px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 3px 0; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+
+  /* Discovery collection board (bottom-center) */
+  #discoveryPanel {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 6;
+    background: rgba(10,6,30,0.5); border: 1px solid rgba(0,234,255,0.35);
+    border-radius: 14px; padding: 10px 12px 12px; pointer-events: none; backdrop-filter: blur(4px);
+  }
+  #discoveryPanel .label { text-align: center; margin-bottom: 7px; }
+  #discCount { color: #00eaff; }
+  #discoveryGrid { display: grid; grid-template-columns: repeat(18, 1fr); gap: 3px; }
+  .chip {
+    width: 19px; height: 19px; border-radius: 4px; font-size: 9px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08); transition: all 0.3s ease;
+  }
+  .chip.found {
+    color: #fff; background: color-mix(in srgb, var(--c) 30%, transparent);
+    border-color: var(--c); box-shadow: 0 0 8px var(--c); text-shadow: 0 0 6px var(--c);
+  }
+
+  /* ============================================================
+     FUN-FACT FLASH (brief, during play)
+     ============================================================ */
+  #factFlash {
+    position: absolute; top: 92px; left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: rgba(10,6,30,0.7); border: 1px solid rgba(0,234,255,0.5);
+    border-radius: 16px; padding: 10px 22px; text-align: center;
+    box-shadow: 0 0 26px rgba(0,234,255,0.4); opacity: 0;
+    pointer-events: none; z-index: 6; max-width: 80vw;
+  }
+  #factFlash.show { animation: factPop 2s ease forwards; }
+  #factFlash b { display: block; font-size: 20px; color: #00eaff; text-shadow: 0 0 12px #00eaff; }
+  #factFlash span { font-size: 14px; color: #d8ccff; }
+  @keyframes factPop {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.9); }
+    15%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    80%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.98); }
+  }
+
+  /* ============================================================
+     OVERLAY SCREENS (start / pause / game over)
+     ============================================================ */
+  .overlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; gap: 16px; z-index: 10;
+    background: radial-gradient(circle at center, rgba(20,8,50,0.7), rgba(5,3,15,0.96));
+    /* Scroll if the content is taller than the screen (small phones), safe-area aware. */
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  }
+  /* On short screens, start content from the top so nothing is clipped/unreachable. */
+  @media (max-height: 720px) { .overlay { justify-content: flex-start; } }
+  .overlay.hidden { display: none; }
+  .title {
+    font-size: clamp(32px, 9vw, 56px); font-weight: 900; letter-spacing: 3px;
+    background: linear-gradient(90deg, #00eaff, #b14bff, #ff2bd6, #ffae00);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 18px rgba(150,90,255,0.8)); animation: pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { filter: drop-shadow(0 0 14px rgba(150,90,255,0.6)); }
+    50%     { filter: drop-shadow(0 0 30px rgba(0,234,255,0.9)); }
+  }
+  .subtitle { font-size: clamp(13px, 3.6vw, 16px); color: #c9bdff; max-width: 600px; line-height: 1.6; }
+  .controls { display: flex; gap: 22px; color: #bdecff; font-size: 14px; flex-wrap: wrap; justify-content: center; }
+  .controls b { color: #fff; text-shadow: 0 0 10px #00eaff; }
+
+  /* Mode selection cards — 4 across on desktop, reflows on smaller screens (see media block) */
+  .mode-grid { display: grid; grid-template-columns: repeat(4, 200px); gap: 18px; margin-top: 6px; }
+  .mode-card {
+    pointer-events: auto; cursor: pointer; padding: 22px 16px; border-radius: 18px;
+    background: rgba(15,8,40,0.7); border: 2px solid rgba(120,90,255,0.4);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  /* (hover effect is defined under @media (hover:hover) so it never sticks on touch) */
+  .mode-icon { font-size: clamp(30px, 8vw, 40px); margin-bottom: 8px; }
+  .mode-name { font-size: clamp(16px, 4.4vw, 19px); font-weight: bold; color: #fff; margin-bottom: 6px; }
+  .mode-desc { font-size: 12.5px; color: #b9aaff; line-height: 1.45; }
+
+  .play-btn {
+    margin-top: 6px; font-size: 20px; font-weight: bold; letter-spacing: 2px;
+    padding: 13px 42px; color: #fff; background: linear-gradient(90deg, #b14bff, #ff2bd6);
+    border: none; border-radius: 40px; cursor: pointer;
+    box-shadow: 0 0 26px rgba(255,43,214,0.6);
+    transition: transform 0.15s ease, box-shadow 0.15s ease; pointer-events: auto;
+  }
+  .ghost-btn {
+    margin-top: 4px; font-size: 15px; padding: 10px 26px; color: #c9bdff;
+    background: transparent; border: 1px solid rgba(120,90,255,0.6); border-radius: 30px;
+    cursor: pointer; pointer-events: auto;
+  }
+  /* .play-btn / .ghost-btn hover effects live under @media (hover:hover) below */
+  #finalScore { font-size: 26px; color: #00eaff; text-shadow: 0 0 14px #00eaff; }
+  .gameover-title { font-size: clamp(34px, 11vw, 52px); font-weight: 900; color: #ff2b6d; text-shadow: 0 0 24px #ff2b6d; }
+  .hint { font-size: 13px; color: #9b8cff; }
+
+  /* ============================================================
+     PAUSE SCREEN — big, readable fun fact
+     ============================================================ */
+  #pauseScreen .pause-tag { font-size: 16px; letter-spacing: 6px; color: #9b8cff; }
+  .pf-orb {
+    width: clamp(96px, 26vw, 130px); height: clamp(96px, 26vw, 130px);
+    border-radius: 50%; position: relative;
+    display: flex; align-items: center; justify-content: center; margin: 4px 0;
+    background: radial-gradient(circle, color-mix(in srgb, var(--c) 35%, #0a0620), #0a0620);
+    border: 3px solid var(--c); box-shadow: 0 0 40px var(--c), inset 0 0 30px color-mix(in srgb, var(--c) 50%, transparent);
+  }
+  .pf-num { position: absolute; top: 14%; font-size: clamp(14px, 4vw, 18px); color: var(--c); font-weight: bold; }
+  .pf-sym { font-size: clamp(40px, 12vw, 58px); font-weight: 900; color: #fff; text-shadow: 0 0 18px var(--c); }
+  .pf-name { font-size: clamp(26px, 8vw, 40px); font-weight: 900; color: #fff; text-shadow: 0 0 16px #00eaff; }
+  .pf-cat { font-size: clamp(14px, 4vw, 17px); font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
+  .pf-fact {
+    font-size: clamp(16px, 4.6vw, 24px); color: #eee4ff; max-width: 640px; line-height: 1.5; margin-top: 6px;
+    background: rgba(0,234,255,0.08); border: 1px solid rgba(0,234,255,0.3);
+    border-radius: 16px; padding: clamp(12px, 3vw, 16px) clamp(16px, 4vw, 26px);
+  }
+
+  /* ============================================================
+     HIGH SCORES
+     ============================================================ */
+  #bestValue { font-size: 12px; color: #ffd23d; margin-top: 2px; text-shadow: 0 0 8px #ffae00; }
+  .mode-best { font-size: 12px; color: #ffd23d; margin-top: 8px; min-height: 14px; text-shadow: 0 0 8px #ffae00; }
+  #newHigh { font-size: 22px; font-weight: bold; color: #ffd23d; text-shadow: 0 0 16px #ffae00; display: none; }
+  #newHigh.show { display: block; animation: pulse 1s ease-in-out infinite; }
+
+  /* ============================================================
+     TOUCH CONTROLS — virtual joystick + on-screen hints
+     ============================================================ */
+  #joystick {
+    position: absolute; z-index: 7; width: 120px; height: 120px; border-radius: 50%;
+    background: rgba(120,90,255,0.12); border: 2px solid rgba(120,90,255,0.5);
+    transform: translate(-50%,-50%); pointer-events: none; display: none;
+  }
+  #joyKnob {
+    position: absolute; left: 60px; top: 60px; width: 54px; height: 54px; border-radius: 50%;
+    background: rgba(0,234,255,0.5); border: 2px solid #00eaff;
+    box-shadow: 0 0 18px #00eaff; transform: translate(-50%,-50%);
+  }
+  .touch-only { display: none; }
+  body.is-touch .touch-only { display: flex; }
+  body.is-touch { cursor: default; }
+
+  /* ============================================================
+     CELEBRATION (collection complete)
+     ============================================================ */
+  #celebrateScreen .title { font-size: 46px; }
+  #celebrateScreen .big { font-size: 28px; color: #ffd23d; text-shadow: 0 0 18px #ffae00; }
+
+  /* ============================================================
+     SETTINGS (difficulty / study mode / sound) — segmented toggles
+     ============================================================ */
+  .settings { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; margin: 2px 0; }
+  .setting { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .setting-label { font-size: 11px; letter-spacing: 2px; color: #9b8cff; text-transform: uppercase; }
+  .seg { display: flex; border: 1px solid rgba(120,90,255,0.5); border-radius: 24px; overflow: hidden; }
+  .seg button {
+    pointer-events: auto; cursor: pointer; background: transparent; color: #c9bdff;
+    border: none; padding: 7px 16px; font-size: 13px; font-family: inherit; transition: all 0.15s ease;
+  }
+  .seg button.active { background: linear-gradient(90deg, #b14bff, #ff2bd6); color: #fff; box-shadow: 0 0 16px rgba(255,43,214,0.5); }
+  .seg button:active { transform: scale(0.94); }
+  .study-note { font-size: 12px; color: #9b8cff; max-width: 520px; }
+
+  /* ============================================================
+     RESPONSIVE + TOUCH POLISH (the mobile conversion lives here)
+     Later in the stylesheet = these win over the desktop defaults.
+     ============================================================ */
+
+  /* Hover effects only where a real pointer exists (no sticky hover on touch). */
+  @media (hover: hover) {
+    .mode-card:hover { transform: translateY(-6px) scale(1.04); border-color: #00eaff; box-shadow: 0 0 30px rgba(0,234,255,0.5); }
+    .play-btn:hover { transform: scale(1.07); box-shadow: 0 0 40px rgba(0,234,255,0.8); }
+    .ghost-btn:hover { color: #fff; border-color: #00eaff; }
+    .seg button:hover:not(.active) { color: #fff; }
+    .icon-btn:hover { background: rgba(120,90,255,0.5); }
+  }
+  /* Tap press-feedback for cards/buttons on touch. */
+  .mode-card:active { transform: scale(0.97); border-color: #00eaff; }
+  .play-btn:active, .ghost-btn:active { transform: scale(0.94); filter: brightness(1.15); }
+
+  /* --- Tablets / medium screens: 2 columns of mode cards --- */
+  @media (max-width: 880px) {
+    .mode-grid { grid-template-columns: repeat(2, minmax(150px, 220px)); gap: 14px; }
+    .settings { gap: 18px; }
+  }
+
+  /* --- Phones --- */
+  @media (max-width: 560px) {
+    .mode-grid { grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 440px; }
+    .mode-card { padding: 14px 10px; border-radius: 14px; }
+    .mode-desc { font-size: 11px; }
+    .overlay { gap: 12px; }
+    .controls { gap: 12px; font-size: 12px; }
+    .study-note { font-size: 11px; }
+    .settings { gap: 12px; }
+    .setting-label { font-size: 10px; }
+    .seg button { padding: 8px 13px; font-size: 12px; }   /* keep ≥40px tall */
+
+    /* HUD shrinks but stays readable */
+    .hud-panel { padding: 7px 11px; border-radius: 11px; }
+    .label { font-size: 10px; letter-spacing: 2px; }
+    .heart { width: 30px; height: 12px; }
+    #hearts { gap: 6px; }
+
+    /* Mode info panels move clear of the bottom thumb zones */
+    #factFlash { top: 78px; padding: 8px 14px; max-width: 92vw; }
+    #factFlash b { font-size: 16px; }
+    #factFlash span { font-size: 12px; }
+    #targetPanel { top: 8px; font-size: 14px; padding: 6px 14px; }
+    #targetPanel b { font-size: 17px; }
+  }
+
+  /* On touch, shrink the info panels so they fit. They're pointer-events:none,
+     so the thumbs control the game right through them — placement is cosmetic. */
+  body.is-touch #legendPanel { left: 8px; bottom: 8px; padding: 8px 10px; }
+  body.is-touch .legend-item { font-size: 10px; margin: 2px 0; gap: 6px; }
+  body.is-touch .legend-dot { width: 9px; height: 9px; }
+  body.is-touch #discoveryPanel { bottom: 6px; max-width: 96vw; }
+  body.is-touch #discoveryGrid { gap: 2px; }
+  body.is-touch .chip { width: clamp(13px, 4.6vw, 19px); height: clamp(13px, 4.6vw, 19px); font-size: 8px; }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-panel">
+    <div class="label">Score</div>
+    <div id="scoreValue">0</div>
+    <div id="modeBadge">Fun Facts</div>
+    <div id="bestValue">Best: 0</div>
+  </div>
+  <div class="hud-panel" style="text-align:right;">
+    <div class="label">Wave <span id="waveValue">1</span></div>
+    <div id="hearts"><div class="heart"></div><div class="heart"></div><div class="heart"></div></div>
+    <div id="hudBtns">
+      <div id="pauseBtn" class="icon-btn" title="Pause (P)">⏸</div>
+      <div id="muteBtn" class="icon-btn" title="Sound on/off">🔊</div>
+      <div id="fullBtn" class="icon-btn" title="Fullscreen">⛶</div>
+    </div>
+  </div>
+</div>
+
+<!-- Mode-specific panels (shown only in their mode) -->
+<div id="targetPanel" class="panel-hidden"></div>
+<div id="legendPanel" class="panel-hidden"><div class="label">Element Groups</div><div id="legendList"></div></div>
+<div id="discoveryPanel" class="panel-hidden">
+  <div class="label">Discovered <span id="discCount">0</span> / 118</div>
+  <div id="discoveryGrid"></div>
+</div>
+
+<!-- Brief fun-fact flash during play -->
+<div id="factFlash"></div>
+
+<!-- START / MODE-SELECT SCREEN -->
+<div id="startScreen" class="overlay">
+  <div class="title">NEON ELEMENTS</div>
+  <div class="subtitle">Pick a game mode! Blast glowing energy orbs that each carry a real periodic-table element — hear them spoken, learn fun facts, and explore the elements.</div>
+  <div class="mode-grid">
+    <div class="mode-card" data-mode="facts">
+      <div class="mode-icon">💡</div>
+      <div class="mode-name">Fun Facts</div>
+      <div class="mode-desc">Blast elements to hear their names and discover a cool fact about each one.</div>
+      <div class="mode-best"></div>
+    </div>
+    <div class="mode-card" data-mode="find">
+      <div class="mode-icon">🎯</div>
+      <div class="mode-name">Find the Element</div>
+      <div class="mode-desc">A target element is named — hunt it down and blast it for big bonus points!</div>
+      <div class="mode-best"></div>
+    </div>
+    <div class="mode-card" data-mode="category">
+      <div class="mode-icon">🎨</div>
+      <div class="mode-name">Element Groups</div>
+      <div class="mode-desc">Orbs are colored by their element family. Learn the groups of the periodic table!</div>
+      <div class="mode-best"></div>
+    </div>
+    <div class="mode-card" data-mode="discovery">
+      <div class="mode-icon">📚</div>
+      <div class="mode-name">Collection Quest</div>
+      <div class="mode-desc">Light up the whole periodic table by discovering all 118 elements!</div>
+      <div class="mode-best"></div>
+    </div>
+  </div>
+  <div class="settings">
+    <div class="setting">
+      <span class="setting-label">Difficulty</span>
+      <div class="seg" id="diffSeg">
+        <button data-diff="easy">Easy</button>
+        <button data-diff="normal">Normal</button>
+        <button data-diff="hard">Hard</button>
+      </div>
+    </div>
+    <div class="setting">
+      <span class="setting-label">Study Mode</span>
+      <div class="seg" id="studySeg">
+        <button data-study="off">Off</button>
+        <button data-study="on">On</button>
+      </div>
+    </div>
+    <div class="setting">
+      <span class="setting-label">Aim Assist</span>
+      <div class="seg" id="assistSeg">
+        <button data-assist="on">On</button>
+        <button data-assist="off">Off</button>
+      </div>
+    </div>
+    <div class="setting">
+      <span class="setting-label">Sound</span>
+      <div class="seg" id="soundSeg">
+        <button data-sound="on">🔊 On</button>
+        <button data-sound="off">🔇 Off</button>
+      </div>
+    </div>
+  </div>
+  <div class="study-note">📖 Study Mode pauses the game on every element you blast, so you can read its fun fact — then press P to keep playing.</div>
+  <div class="controls">
+    <span><b>W A S D</b> — Move</span><span><b>Mouse</b> — Aim</span>
+    <span><b>Left Click</b> — Shoot</span><span><b>P</b> — Pause</span>
+  </div>
+  <div class="controls touch-only">
+    <span><b>Left thumb</b> — Move</span><span><b>Right thumb</b> — Aim &amp; Shoot</span>
+  </div>
+  <div class="hint">🔊 Turn your sound on for music, blasts, and spoken element names!</div>
+</div>
+
+<!-- PAUSE SCREEN -->
+<div id="pauseScreen" class="overlay hidden">
+  <div class="pause-tag">PAUSED</div>
+  <div id="pauseFact"></div>
+  <button class="play-btn" id="resumeBtn">▶ RESUME</button>
+  <div class="hint">Press <b>P</b> or <b>Esc</b> to resume</div>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div id="gameOverScreen" class="overlay hidden">
+  <div class="gameover-title">GAME OVER</div>
+  <div id="finalScore">Score: 0</div>
+  <div id="newHigh">★ NEW HIGH SCORE! ★</div>
+  <div class="subtitle" id="bestLine"></div>
+  <div class="subtitle" id="gameOverMsg">The orbs got you! Ready to learn some more?</div>
+  <button class="play-btn" id="restartBtn">↻ PLAY AGAIN</button>
+  <button class="ghost-btn" id="changeModeBtn">⟵ Change Mode</button>
+</div>
+
+<!-- Virtual joystick (touch devices) -->
+<div id="joystick"><div id="joyKnob"></div></div>
+
+<!-- CELEBRATION SCREEN — shown when all 118 elements are collected -->
+<div id="celebrateScreen" class="overlay hidden">
+  <div class="title">🎉 COMPLETE! 🎉</div>
+  <div class="big">You discovered all 118 elements!</div>
+  <div class="subtitle">You're a true Element Master — the whole periodic table is glowing!</div>
+  <button class="play-btn" id="celebrateBtn">▶ KEEP PLAYING</button>
+</div>
+
+<script>
+/* ================================================================
+   NEON ELEMENTS — kid-friendly periodic-table arcade game.
+   Single <canvas>, no external files. Four selectable game modes,
+   procedural music + sound effects, spoken element names, and a
+   pause feature that freezes play and shows the fun fact in big,
+   easy-to-read form.
+
+   MODULES:
+     1. Element data, categories, fun facts
+     2. Audio engine (music + SFX) and speech
+     3. Canvas/input setup
+     4. Game state + objects (orbs use cached sprites)
+     5. Game modes
+     6. Update + draw loops
+     7. Pause + start/gameover state
+   ================================================================ */
+
+/* ================================================================
+   1. PERIODIC TABLE DATA
+   ================================================================ */
+const ELEMENTS = [
+  [1,"H","Hydrogen"],[2,"He","Helium"],[3,"Li","Lithium"],[4,"Be","Beryllium"],
+  [5,"B","Boron"],[6,"C","Carbon"],[7,"N","Nitrogen"],[8,"O","Oxygen"],
+  [9,"F","Fluorine"],[10,"Ne","Neon"],[11,"Na","Sodium"],[12,"Mg","Magnesium"],
+  [13,"Al","Aluminum"],[14,"Si","Silicon"],[15,"P","Phosphorus"],[16,"S","Sulfur"],
+  [17,"Cl","Chlorine"],[18,"Ar","Argon"],[19,"K","Potassium"],[20,"Ca","Calcium"],
+  [21,"Sc","Scandium"],[22,"Ti","Titanium"],[23,"V","Vanadium"],[24,"Cr","Chromium"],
+  [25,"Mn","Manganese"],[26,"Fe","Iron"],[27,"Co","Cobalt"],[28,"Ni","Nickel"],
+  [29,"Cu","Copper"],[30,"Zn","Zinc"],[31,"Ga","Gallium"],[32,"Ge","Germanium"],
+  [33,"As","Arsenic"],[34,"Se","Selenium"],[35,"Br","Bromine"],[36,"Kr","Krypton"],
+  [37,"Rb","Rubidium"],[38,"Sr","Strontium"],[39,"Y","Yttrium"],[40,"Zr","Zirconium"],
+  [41,"Nb","Niobium"],[42,"Mo","Molybdenum"],[43,"Tc","Technetium"],[44,"Ru","Ruthenium"],
+  [45,"Rh","Rhodium"],[46,"Pd","Palladium"],[47,"Ag","Silver"],[48,"Cd","Cadmium"],
+  [49,"In","Indium"],[50,"Sn","Tin"],[51,"Sb","Antimony"],[52,"Te","Tellurium"],
+  [53,"I","Iodine"],[54,"Xe","Xenon"],[55,"Cs","Cesium"],[56,"Ba","Barium"],
+  [57,"La","Lanthanum"],[58,"Ce","Cerium"],[59,"Pr","Praseodymium"],[60,"Nd","Neodymium"],
+  [61,"Pm","Promethium"],[62,"Sm","Samarium"],[63,"Eu","Europium"],[64,"Gd","Gadolinium"],
+  [65,"Tb","Terbium"],[66,"Dy","Dysprosium"],[67,"Ho","Holmium"],[68,"Er","Erbium"],
+  [69,"Tm","Thulium"],[70,"Yb","Ytterbium"],[71,"Lu","Lutetium"],[72,"Hf","Hafnium"],
+  [73,"Ta","Tantalum"],[74,"W","Tungsten"],[75,"Re","Rhenium"],[76,"Os","Osmium"],
+  [77,"Ir","Iridium"],[78,"Pt","Platinum"],[79,"Au","Gold"],[80,"Hg","Mercury"],
+  [81,"Tl","Thallium"],[82,"Pb","Lead"],[83,"Bi","Bismuth"],[84,"Po","Polonium"],
+  [85,"At","Astatine"],[86,"Rn","Radon"],[87,"Fr","Francium"],[88,"Ra","Radium"],
+  [89,"Ac","Actinium"],[90,"Th","Thorium"],[91,"Pa","Protactinium"],[92,"U","Uranium"],
+  [93,"Np","Neptunium"],[94,"Pu","Plutonium"],[95,"Am","Americium"],[96,"Cm","Curium"],
+  [97,"Bk","Berkelium"],[98,"Cf","Californium"],[99,"Es","Einsteinium"],[100,"Fm","Fermium"],
+  [101,"Md","Mendelevium"],[102,"No","Nobelium"],[103,"Lr","Lawrencium"],[104,"Rf","Rutherfordium"],
+  [105,"Db","Dubnium"],[106,"Sg","Seaborgium"],[107,"Bh","Bohrium"],[108,"Hs","Hassium"],
+  [109,"Mt","Meitnerium"],[110,"Ds","Darmstadtium"],[111,"Rg","Roentgenium"],[112,"Cn","Copernicium"],
+  [113,"Nh","Nihonium"],[114,"Fl","Flerovium"],[115,"Mc","Moscovium"],[116,"Lv","Livermorium"],
+  [117,"Ts","Tennessine"],[118,"Og","Oganesson"]
+].map(e => ({ n: e[0], s: e[1], name: e[2] }));
+
+// Famous elements get a higher spawn chance so the game stays friendly.
+const COMMON = new Set([1,2,3,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,26,29,30,47,50,53,74,78,79,80,82,92]);
+const COMMON_ELEMENTS = ELEMENTS.filter(e => COMMON.has(e.n));
+
+// --- Element CATEGORIES (used by Element Groups mode + everywhere for color) ---
+const CATS = {
+  alkali:    { label: "Alkali Metal",     color: "#ff3b6d" },
+  alkaline:  { label: "Alkaline Earth",   color: "#ff9a3d" },
+  transition:{ label: "Transition Metal", color: "#ffd23d" },
+  post:      { label: "Post-Transition",  color: "#6dff5b" },
+  metalloid: { label: "Metalloid",        color: "#2bffd6" },
+  nonmetal:  { label: "Nonmetal",         color: "#36c2ff" },
+  halogen:   { label: "Halogen",          color: "#b14bff" },
+  noble:     { label: "Noble Gas",        color: "#ff5be0" },
+  lanthanide:{ label: "Lanthanide",       color: "#8a7bff" },
+  actinide:  { label: "Actinide",         color: "#ff7ba8" }
+};
+// Work out which category an element belongs to from its atomic number.
+function categoryOf(n) {
+  const inRange = (a, b) => n >= a && n <= b;
+  if ([3,11,19,37,55,87].includes(n)) return "alkali";
+  if ([4,12,20,38,56,88].includes(n)) return "alkaline";
+  if ([2,10,18,36,54,86,118].includes(n)) return "noble";
+  if ([9,17,35,53,85,117].includes(n)) return "halogen";   // checked before metalloid (At)
+  if (inRange(57,71)) return "lanthanide";
+  if (inRange(89,103)) return "actinide";
+  if ([5,14,32,33,51,52].includes(n)) return "metalloid";
+  if ([1,6,7,8,15,16,34].includes(n)) return "nonmetal";
+  if ([13,31,49,50,81,82,83,84,113,114,115,116].includes(n)) return "post";
+  return "transition";  // the remaining d-block elements
+}
+
+// Kid-friendly fun facts (common elements have specific ones; others get a fallback).
+const FACTS = {
+  H:"The lightest element — it fuels the Sun and the stars!",
+  He:"Lighter than air — it makes balloons float and your voice squeaky!",
+  Li:"Powers the rechargeable battery in phones and toys.",
+  C:"The element of life — found in every living thing, and in diamonds!",
+  N:"About 78% of the air you breathe is nitrogen.",
+  O:"You breathe it every second to stay alive!",
+  F:"Helps keep your teeth strong — it's in toothpaste!",
+  Ne:"This is the gas that makes glowing neon signs shine!",
+  Na:"Team up with chlorine and you get table salt!",
+  Mg:"Burns with a bright white light — used in fireworks!",
+  Al:"Light and shiny — it makes soda cans and foil.",
+  Si:"The brain of computers — it's inside every microchip!",
+  P:"Glows in the dark and helps make your bones strong.",
+  S:"Smells like rotten eggs and makes match heads.",
+  Cl:"Keeps swimming pools clean and germ-free!",
+  Ar:"A quiet gas that fills light bulbs.",
+  K:"Bananas are packed with potassium — great for muscles!",
+  Ca:"Builds strong bones and teeth — it's in milk!",
+  Fe:"Makes steel strong and carries oxygen in your blood!",
+  Cu:"Reddish metal that carries electricity in wires.",
+  Zn:"Helps your body fight off colds.",
+  Ag:"The shiniest metal — used in jewelry and mirrors!",
+  Sn:"An old metal once used to make cans and toys.",
+  I:"Helps your body and is painted on cuts to stop germs.",
+  W:"Has the highest melting point — it glows in light bulbs!",
+  Pt:"A rare, precious metal even more valuable than gold.",
+  Au:"Shiny treasure! Gold never rusts and is super valuable.",
+  Hg:"The only metal that's a liquid at room temperature!",
+  Pb:"A heavy, soft metal once used in old pipes and pencils.",
+  U:"A powerful element used to make nuclear energy."
+};
+function factFor(el) {
+  return FACTS[el.s] || `${el.name} is element number ${el.n} on the periodic table!`;
+}
+
+/* ================================================================
+   2. AUDIO ENGINE — procedural music + SFX + spoken names.
+   ================================================================ */
+let actx = null, musicGain = null, musicTimer = null, nextNoteTime = 0, musicStep = 0;
+const SCALE = [0, 3, 5, 7, 10, 12];   // pleasant minor-pentatonic
+
+function initAudio() {
+  if (!actx) { actx = new (window.AudioContext || window.webkitAudioContext)(); startMusic(); }
+  if (actx.state === "suspended") actx.resume();
+}
+function startMusic() {
+  musicGain = actx.createGain();
+  musicGain.gain.value = muted ? 0 : 0.10;     // respect the mute setting
+  musicGain.connect(actx.destination);
+  nextNoteTime = actx.currentTime + 0.1;
+  // Lookahead scheduler keeps music perfectly timed and lag-free.
+  musicTimer = setInterval(() => {
+    while (nextNoteTime < actx.currentTime + 0.25) {
+      playMusicNote(nextNoteTime);
+      nextNoteTime += 0.26; musicStep++;
+    }
+  }, 50);
+}
+function playMusicNote(t) {
+  const baseA = 220;
+  const semi = SCALE[musicStep % SCALE.length] + (Math.floor(musicStep / 6) % 2 ? 12 : 0);
+  const osc = actx.createOscillator(), g = actx.createGain();
+  osc.type = "triangle"; osc.frequency.value = baseA * Math.pow(2, semi / 12);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.5, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+  osc.connect(g); g.connect(musicGain); osc.start(t); osc.stop(t + 0.36);
+  if (musicStep % 4 === 0) {
+    const b = actx.createOscillator(), bg = actx.createGain();
+    b.type = "sine";
+    b.frequency.value = (baseA / 2) * Math.pow(2, SCALE[(musicStep / 4) % SCALE.length] / 12);
+    bg.gain.setValueAtTime(0, t);
+    bg.gain.linearRampToValueAtTime(0.55, t + 0.03);
+    bg.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    b.connect(bg); bg.connect(musicGain); b.start(t); b.stop(t + 0.6);
+  }
+}
+function sfxShoot() {
+  if (!actx || muted) return;
+  const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+  o.type = "square"; o.frequency.setValueAtTime(880, t);
+  o.frequency.exponentialRampToValueAtTime(180, t + 0.11);
+  g.gain.setValueAtTime(0.14, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.13);
+}
+function sfxDestroy() {
+  if (!actx || muted) return;
+  const t = actx.currentTime;
+  [0, 0.05].forEach((d, i) => {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = "sine"; o.frequency.setValueAtTime(620 + i * 320, t + d);
+    o.frequency.exponentialRampToValueAtTime(1500 + i * 400, t + d + 0.12);
+    g.gain.setValueAtTime(0.15, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.16);
+    o.connect(g); g.connect(actx.destination); o.start(t + d); o.stop(t + d + 0.18);
+  });
+}
+function sfxHit() {
+  if (!actx || muted) return;
+  const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+  o.type = "sawtooth"; o.frequency.setValueAtTime(160, t);
+  o.frequency.exponentialRampToValueAtTime(60, t + 0.25);
+  g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.32);
+}
+// Bright chime for a correct "Find the Element" hit.
+function sfxCorrect() {
+  if (!actx || muted) return;
+  const t = actx.currentTime;
+  [0, 0.08, 0.16].forEach((d, i) => {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = "triangle"; o.frequency.value = 660 * Math.pow(2, i / 3);
+    g.gain.setValueAtTime(0.18, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.25);
+    o.connect(g); g.connect(actx.destination); o.start(t + d); o.stop(t + d + 0.27);
+  });
+}
+
+// --- Spoken element names ---
+let ttsVoice = null;
+function loadVoices() {
+  if (!("speechSynthesis" in window)) return;
+  const vs = speechSynthesis.getVoices();
+  ttsVoice = vs.find(v => /en[-_]?US/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || vs[0] || null;
+}
+if ("speechSynthesis" in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+let lastSpoke = 0;
+function speak(text) {
+  if (muted || !("speechSynthesis" in window)) return;
+  const now = performance.now();
+  if (now - lastSpoke < 240) return;          // throttle so speech never lags behind
+  lastSpoke = now;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  if (ttsVoice) u.voice = ttsVoice;
+  u.rate = 1.0; u.pitch = 1.15; u.volume = 1;
+  speechSynthesis.speak(u);
+}
+
+/* ================================================================
+   3. CANVAS + INPUT
+   ================================================================ */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+let W, H;              // logical (CSS-pixel) size — all game math uses these
+let DPR = 1;          // device pixel ratio, capped for performance
+let unit = 1;         // device-adaptive scale so the game feels consistent everywhere
+let sceneReady = false;
+
+function resize() {
+  // Render at the screen's true pixel density so everything is razor sharp on
+  // phones (2–3× DPR), but cap at 2 so high-DPR devices don't tank performance.
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);   // draw in CSS pixels; scale handles the rest
+
+  // Scale objects/speeds to the screen size so a small phone and a big monitor
+  // both feel right (orbs aren't huge on phones; not tiny on desktops).
+  unit = Math.max(0.7, Math.min(1.12, Math.min(W, H) / 760));
+  if (sceneReady) { player.radius = 18 * unit; player.speed = 4.2 * unit; }
+}
+addEventListener("resize", resize);
+addEventListener("orientationchange", resize);
+resize();
+
+const scoreValueEl = document.getElementById("scoreValue");
+const waveValueEl  = document.getElementById("waveValue");
+const modeBadge    = document.getElementById("modeBadge");
+const heartEls     = document.querySelectorAll(".heart");
+const startScreen  = document.getElementById("startScreen");
+const pauseScreen  = document.getElementById("pauseScreen");
+const gameOverScreen = document.getElementById("gameOverScreen");
+const finalScoreEl = document.getElementById("finalScore");
+const factEl       = document.getElementById("factFlash");
+const targetPanel  = document.getElementById("targetPanel");
+const legendPanel  = document.getElementById("legendPanel");
+const discoveryPanel = document.getElementById("discoveryPanel");
+const discoveryGrid  = document.getElementById("discoveryGrid");
+const discCount    = document.getElementById("discCount");
+const pauseFact    = document.getElementById("pauseFact");
+const bestValue    = document.getElementById("bestValue");
+const joystickEl   = document.getElementById("joystick");
+const joyKnobEl    = document.getElementById("joyKnob");
+const celebrateScreen = document.getElementById("celebrateScreen");
+const newHighEl    = document.getElementById("newHigh");
+const bestLine     = document.getElementById("bestLine");
+const muteBtn      = document.getElementById("muteBtn");
+const fullBtn      = document.getElementById("fullBtn");
+
+const keys = {};
+addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+addEventListener("keyup",   e => keys[e.key.toLowerCase()] = false);
+const mouse = { x: 0, y: 0, down: false };
+addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+addEventListener("mousedown", e => { if (e.button === 0) mouse.down = true; });
+addEventListener("mouseup",   e => { if (e.button === 0) mouse.down = false; });
+addEventListener("contextmenu", e => e.preventDefault());
+// Pause / resume with P or Esc.
+addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if ((k === "p" || k === "escape") && running) togglePause();
+});
+
+/* --- TOUCH CONTROLS (tablets/phones) ---
+   Left half of the screen = a virtual joystick that steers the player.
+   Right half = aim & shoot: the player aims toward your finger and fires
+   while it's held. These reuse the same mouse.x/mouse.y/down the rest of
+   the game already understands, so no other code needs to change. */
+function onTouchStart(e) {
+  if (!running || paused) return;          // let taps reach menu buttons normally
+  // Don't hijack taps on the HUD buttons (pause/sound/fullscreen) — let them click.
+  if (e.target.closest && e.target.closest(".icon-btn")) return;
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.clientX < W / 2 && joyId === null) {
+      // Start the movement joystick where the finger landed.
+      joyId = t.identifier; joyBase = { x: t.clientX, y: t.clientY }; joyVec = { x: 0, y: 0 };
+      joystickEl.style.left = t.clientX + "px";
+      joystickEl.style.top = t.clientY + "px";
+      joyKnobEl.style.left = "60px"; joyKnobEl.style.top = "60px";
+      joystickEl.style.display = "block";
+    } else if (t.clientX >= W / 2 && aimId === null) {
+      // Start aiming & firing toward the finger.
+      aimId = t.identifier; mouse.x = t.clientX; mouse.y = t.clientY; mouse.down = true;
+    }
+  }
+}
+function onTouchMove(e) {
+  if (joyId === null && aimId === null) return;
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.identifier === joyId) {
+      let dx = t.clientX - joyBase.x, dy = t.clientY - joyBase.y;
+      const max = 55, d = Math.hypot(dx, dy);
+      if (d > max) { dx = dx / d * max; dy = dy / d * max; }   // clamp to ring
+      joyVec = { x: dx / max, y: dy / max };                   // -1..1 direction
+      joyKnobEl.style.left = (60 + dx) + "px";
+      joyKnobEl.style.top = (60 + dy) + "px";
+    } else if (t.identifier === aimId) {
+      mouse.x = t.clientX; mouse.y = t.clientY;
+    }
+  }
+}
+function onTouchEnd(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joyId) { joyId = null; joyVec = { x: 0, y: 0 }; joystickEl.style.display = "none"; }
+    else if (t.identifier === aimId) { aimId = null; mouse.down = false; }
+  }
+}
+addEventListener("touchstart", onTouchStart, { passive: false });
+addEventListener("touchmove", onTouchMove, { passive: false });
+addEventListener("touchend", onTouchEnd, { passive: false });
+addEventListener("touchcancel", onTouchEnd, { passive: false });
+
+/* ================================================================
+   4. GAME STATE + OBJECTS
+   ================================================================ */
+let running = false, paused = false;
+let gameMode = "facts";          // "facts" | "find" | "category" | "discovery"
+let score = 0, health = 3, wave = 1, frame = 0, shootCooldown = 0;
+let bullets = [], orbs = [], particles = [];
+let lastFact = null;             // last element destroyed (shown big on pause)
+let target = null;               // current target element (Find mode)
+const discovered = new Set();    // atomic numbers collected (Collection mode)
+
+// Per-mode high scores, saved in the browser so they persist between visits.
+let highScores = {};
+try { highScores = JSON.parse(localStorage.getItem("neonElementsHigh") || "{}"); }
+catch (e) { highScores = {}; }
+
+// Player settings (difficulty / study mode / sound), also saved in the browser.
+let difficulty = "normal";   // "easy" | "normal" | "hard"
+let studyMode = false;       // auto-pause on each destroy to read the fact
+let muted = false;           // all sound + speech off
+let aimAssist = true;        // nudge shots toward the nearest orb (great for kids/touch)
+try {
+  const s = JSON.parse(localStorage.getItem("neonElementsSettings") || "{}");
+  if (s.difficulty) difficulty = s.difficulty;
+  if (typeof s.studyMode === "boolean") studyMode = s.studyMode;
+  if (typeof s.muted === "boolean") muted = s.muted;
+  if (typeof s.aimAssist === "boolean") aimAssist = s.aimAssist;
+} catch (e) {}
+function saveSettings() {
+  try { localStorage.setItem("neonElementsSettings",
+    JSON.stringify({ difficulty, studyMode, muted, aimAssist })); } catch (e) {}
+}
+
+// Difficulty tuning: orb speed multiplier + spawn-rate multiplier.
+const DIFF = {
+  easy:   { speed: 0.62, spawnMul: 1.45, label: "Easy" },
+  normal: { speed: 1.0,  spawnMul: 1.0,  label: "Normal" },
+  hard:   { speed: 1.5,  spawnMul: 0.68, label: "Hard" }
+};
+
+// Touch-control state (tablets/phones): a virtual joystick + an aim finger.
+let joyId = null, aimId = null, joyBase = { x: 0, y: 0 }, joyVec = { x: 0, y: 0 };
+const isTouch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+if (isTouch) document.body.classList.add("is-touch");
+
+const player = { x: 0, y: 0, radius: 18, speed: 4.2, angle: 0, invincible: 0 };
+const ORB_COLORS = ["#00eaff", "#b14bff", "#ff2bd6", "#39ff14", "#ffae00"];
+
+const MODE_NAMES = { facts: "Fun Facts", find: "Find the Element", category: "Element Groups", discovery: "Collection Quest" };
+
+/* ---- Orb sprite caching (drawn once, stamped every frame) ---- */
+function makeOrbSprite(o) {
+  const r = o.radius, pad = 24, size = Math.ceil((r + pad) * 2);
+  const c = document.createElement("canvas");
+  // Rasterize the sprite at the device pixel ratio so the element symbol/name
+  // stay razor-sharp on high-DPR phones (we still blit using the logical size).
+  c.width = c.height = Math.ceil(size * DPR);
+  const g = c.getContext("2d");
+  g.scale(DPR, DPR);
+  const cx = size / 2, cy = size / 2;
+
+  g.shadowBlur = 26; g.shadowColor = o.color; g.fillStyle = o.color;
+  g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+  g.shadowBlur = 0;
+  g.beginPath(); g.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
+  g.fillStyle = "rgba(8,5,24,0.62)"; g.fill();
+  g.beginPath(); g.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
+  g.fillStyle = o.color; g.globalAlpha = 0.12; g.fill(); g.globalAlpha = 1;
+
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = o.color;
+  g.font = `bold ${Math.round(r * 0.34)}px Trebuchet MS`;
+  g.fillText(o.el.n, cx, cy - r * 0.46);
+  g.font = `bold ${Math.round(r * 0.92)}px Trebuchet MS`;
+  g.lineWidth = Math.max(2, r * 0.07); g.strokeStyle = "rgba(0,0,0,0.65)";
+  g.strokeText(o.el.s, cx, cy);
+  g.fillStyle = "#ffffff"; g.fillText(o.el.s, cx, cy);
+  let nf = Math.round(r * 0.3);
+  g.font = `bold ${nf}px Trebuchet MS`;
+  while (g.measureText(o.el.name.toUpperCase()).width > r * 1.7 && nf > 7) {
+    nf--; g.font = `bold ${nf}px Trebuchet MS`;
+  }
+  g.fillStyle = "#ffffff"; g.fillText(o.el.name.toUpperCase(), cx, cy + r * 0.55);
+
+  o.sprite = c; o.spriteSize = size;
+}
+
+function pickElement() {
+  if (Math.random() < 0.7) return COMMON_ELEMENTS[Math.floor(Math.random() * COMMON_ELEMENTS.length)];
+  return ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
+}
+
+function spawnOrb() {
+  const edge = Math.floor(Math.random() * 4);
+  let x, y;
+  if (edge === 0) { x = Math.random() * W; y = -50; }
+  else if (edge === 1) { x = W + 50; y = Math.random() * H; }
+  else if (edge === 2) { x = Math.random() * W; y = H + 50; }
+  else { x = -50; y = Math.random() * H; }
+
+  // In "Find" mode, sometimes deliberately spawn the target so it's findable.
+  let el;
+  if (gameMode === "find" && target && Math.random() < 0.4) el = target;
+  else el = pickElement();
+
+  // In "Element Groups" mode the orb color = its category color (teaches groups).
+  const color = (gameMode === "category")
+    ? CATS[categoryOf(el.n)].color
+    : ORB_COLORS[Math.floor(Math.random() * ORB_COLORS.length)];
+
+  const baseSpeed = (0.85 + wave * 0.11) * DIFF[difficulty].speed * unit;   // difficulty + device scale
+  const o = { x, y, radius: (28 + Math.random() * 12) * unit, speed: baseSpeed + Math.random() * 0.5 * unit,
+              color, pulse: Math.random() * Math.PI * 2, el };
+  makeOrbSprite(o);
+  orbs.push(o);
+}
+
+function burst(x, y, color, count = 18) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 4;
+    particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, color, size: 2 + Math.random() * 3 });
+  }
+}
+
+function shoot() {
+  // Default aim point = where you're pointing (mouse or right-thumb).
+  let tx = mouse.x, ty = mouse.y;
+
+  // Aim assist: if an orb is near the aim point, lock the shot onto it. This
+  // makes tapping forgiving for kids and small touch screens — a near-tap hits.
+  if (aimAssist) {
+    let best = null, bestD = 150 * unit;     // assist radius, scaled to device
+    for (const o of orbs) {
+      const d = Math.hypot(o.x - mouse.x, o.y - mouse.y);
+      if (d < bestD) { bestD = d; best = o; }
+    }
+    if (best) { tx = best.x; ty = best.y; }
+  }
+
+  const a = Math.atan2(ty - player.y, tx - player.x), sp = 11 * unit;
+  bullets.push({ x: player.x + Math.cos(a) * player.radius, y: player.y + Math.sin(a) * player.radius,
+                 vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, radius: 5 * unit });
+  sfxShoot();
+}
+
+/* ================================================================
+   5. GAME MODES — helpers for the mode-specific behavior/UI.
+   ================================================================ */
+// Build the category legend once.
+function buildLegend() {
+  const list = document.getElementById("legendList");
+  list.innerHTML = "";
+  for (const key in CATS) {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    item.innerHTML = `<span class="legend-dot" style="color:${CATS[key].color};background:${CATS[key].color}"></span>${CATS[key].label}`;
+    list.appendChild(item);
+  }
+}
+// Build the 118-chip discovery board once.
+function buildDiscoveryGrid() {
+  discoveryGrid.innerHTML = "";
+  ELEMENTS.forEach(el => {
+    const d = document.createElement("div");
+    d.className = "chip"; d.id = "chip-" + el.n; d.textContent = el.s;
+    discoveryGrid.appendChild(d);
+  });
+}
+// Mark an element as discovered (Collection mode) and light up its chip.
+function discover(el) {
+  if (discovered.has(el.n)) return false;
+  discovered.add(el.n);
+  const chip = document.getElementById("chip-" + el.n);
+  if (chip) { chip.classList.add("found"); chip.style.setProperty("--c", CATS[categoryOf(el.n)].color); }
+  discCount.textContent = discovered.size;
+  if (discovered.size === 118) celebrate();    // collected them all!
+  return true;     // true = newly discovered
+}
+
+// Big reward when the whole periodic table is discovered.
+function celebrate() {
+  // Rainbow confetti burst from the center of the arena.
+  for (let i = 0; i < 140; i++) burst(W / 2, H / 2, ORB_COLORS[i % ORB_COLORS.length], 1);
+  speak("Congratulations! You discovered all 118 elements!");
+  paused = true;                               // freeze play behind the overlay
+  if (actx) actx.suspend();
+  celebrateScreen.classList.remove("hidden");
+}
+// Choose a new target element (Find mode) and show it in the HUD.
+function newTarget() {
+  target = COMMON_ELEMENTS[Math.floor(Math.random() * COMMON_ELEMENTS.length)];
+  targetPanel.innerHTML = `🎯 Find: <b>${target.s}</b> — ${target.name}`;
+}
+// Show/hide the right panels for the chosen mode.
+function applyMode(m) {
+  gameMode = m;
+  modeBadge.textContent = MODE_NAMES[m];
+  targetPanel.classList.toggle("panel-hidden", m !== "find");
+  legendPanel.classList.toggle("panel-hidden", m !== "category");
+  discoveryPanel.classList.toggle("panel-hidden", m !== "discovery");
+  if (m === "find") newTarget();
+}
+
+/* ================================================================
+   6. UPDATE + DRAW
+   ================================================================ */
+function update() {
+  frame++;
+
+  // Player movement (WASD, normalized diagonals).
+  let mx = 0, my = 0;
+  if (keys["w"]) my -= 1; if (keys["s"]) my += 1;
+  if (keys["a"]) mx -= 1; if (keys["d"]) mx += 1;
+  if (joyId !== null) { mx = joyVec.x; my = joyVec.y; }   // touch joystick overrides keys
+  if (mx || my) {
+    let len = Math.hypot(mx, my);
+    if (len > 1) { mx /= len; my /= len; }                // normalize only when needed
+    player.x += mx * player.speed;                        // (joystick gives proportional speed)
+    player.y += my * player.speed;
+  }
+  player.x = Math.max(player.radius, Math.min(W - player.radius, player.x));
+  player.y = Math.max(player.radius, Math.min(H - player.radius, player.y));
+  player.angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+
+  // Shooting.
+  if (shootCooldown > 0) shootCooldown--;
+  if (mouse.down && shootCooldown === 0) { shoot(); shootCooldown = 8; }
+
+  // Bullets.
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i]; b.x += b.vx; b.y += b.vy;
+    if (b.x < -20 || b.x > W + 20 || b.y < -20 || b.y > H + 20) bullets.splice(i, 1);
+  }
+
+  // Spawning + waves.
+  const spawnEvery = Math.max(14, Math.round((70 - wave * 5) * DIFF[difficulty].spawnMul));  // difficulty scales spawn rate
+  if (frame % spawnEvery === 0) spawnOrb();
+  if (frame % 720 === 0) { wave++; waveValueEl.textContent = wave; }
+
+  // Move orbs toward player.
+  for (const o of orbs) {
+    const a = Math.atan2(player.y - o.y, player.x - o.x);
+    o.x += Math.cos(a) * o.speed; o.y += Math.sin(a) * o.speed; o.pulse += 0.08;
+  }
+
+  // Bullet vs orb: destroy + mode-specific scoring/learning.
+  for (let i = orbs.length - 1; i >= 0; i--) {
+    const o = orbs[i];
+    for (let j = bullets.length - 1; j >= 0; j--) {
+      const b = bullets[j];
+      if (Math.hypot(o.x - b.x, o.y - b.y) < o.radius + b.radius) {
+        burst(o.x, o.y, o.color);
+        orbs.splice(i, 1); bullets.splice(j, 1);
+        destroyElement(o.el);
+        break;
+      }
+    }
+  }
+
+  // Orb vs player: lose health. (Skipped if Study Mode just paused this frame.)
+  if (player.invincible > 0) player.invincible--;
+  if (!paused) {
+    for (let i = orbs.length - 1; i >= 0; i--) {
+      const o = orbs[i];
+      if (Math.hypot(o.x - player.x, o.y - player.y) < o.radius + player.radius) {
+        burst(o.x, o.y, o.color, 24); orbs.splice(i, 1);
+        if (player.invincible === 0) { sfxHit(); loseHealth(); player.invincible = 60; }
+      }
+    }
+  }
+
+  // Particles.
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy *= 0.94; p.life -= 0.03;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+// What happens when an element orb is destroyed — depends on the mode.
+function destroyElement(el) {
+  lastFact = el;                                  // remember for the pause screen
+  let pts = 10 + Math.floor(el.n / 10);           // heavier = a little more
+  sfxDestroy();
+
+  if (gameMode === "find") {
+    if (target && el.n === target.n) {
+      pts = 50; sfxCorrect(); speak("Correct! " + el.name); newTarget();
+    } else { pts = 5; speak(el.name); }
+  } else if (gameMode === "discovery") {
+    const isNew = discover(el);
+    if (isNew) pts += 15;                          // bonus for a brand-new element
+    speak(el.name);
+  } else {
+    speak(el.name);
+  }
+
+  score += pts; scoreValueEl.textContent = score;
+  showFact(el);
+
+  // Study Mode: freeze the game on each destroy so the fact can be read.
+  if (studyMode && running && !paused) studyPause();
+}
+
+// Auto-pause used by Study Mode. Unlike a manual pause, it does NOT cancel
+// speech, so the element's name finishes being spoken while you read.
+function studyPause() {
+  paused = true;
+  if (actx) actx.suspend();      // pause the music (speech keeps going)
+  showPauseScreen();
+}
+
+function showFact(el) {
+  factEl.innerHTML = `<b>${el.s} · ${el.name}</b><span>${factFor(el)}</span>`;
+  factEl.classList.remove("show"); void factEl.offsetWidth; factEl.classList.add("show");
+}
+function loseHealth() {
+  health--;
+  if (heartEls[health]) heartEls[health].classList.add("lost");
+  if (health <= 0) endGame();
+}
+
+function draw() {
+  ctx.fillStyle = "rgba(5,3,15,0.35)"; ctx.fillRect(0, 0, W, H);
+  drawGrid(); drawParticles(); drawBullets(); drawOrbs(); drawPlayer();
+}
+function drawGrid() {
+  const gap = 60;
+  ctx.lineWidth = 1; ctx.strokeStyle = "rgba(120,90,255,0.16)";
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += gap) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+  for (let y = 0; y <= H; y += gap) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke();
+  const grad = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.25, W/2, H/2, Math.max(W,H)*0.7);
+  grad.addColorStop(0, "rgba(0,0,0,0)"); grad.addColorStop(1, "rgba(80,30,160,0.18)");
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+}
+function drawOrbs() {
+  for (const o of orbs) {
+    const pulse = 1 + Math.sin(o.pulse) * 0.08, s = o.spriteSize * pulse;
+    ctx.drawImage(o.sprite, o.x - s / 2, o.y - s / 2, s, s);
+  }
+}
+function drawBullets() {
+  ctx.save(); ctx.shadowBlur = 18; ctx.shadowColor = "#00eaff";
+  for (const b of bullets) { ctx.fillStyle = "#00eaff"; ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI*2); ctx.fill(); }
+  ctx.restore();
+  ctx.fillStyle = "#ffffff";
+  for (const b of bullets) { ctx.beginPath(); ctx.arc(b.x, b.y, b.radius * 0.5, 0, Math.PI*2); ctx.fill(); }
+}
+function drawParticles() {
+  for (const p of particles) {
+    ctx.save(); ctx.globalAlpha = Math.max(p.life, 0);
+    ctx.shadowBlur = 12; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.restore();
+  }
+}
+function drawPlayer() {
+  if (player.invincible > 0 && Math.floor(player.invincible / 5) % 2 === 0) return;
+  ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(player.angle);
+  ctx.shadowBlur = 26; ctx.shadowColor = "#00eaff"; ctx.fillStyle = "#0affef";
+  ctx.beginPath(); ctx.arc(0, 0, player.radius, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillStyle = "#ffffff";
+  ctx.beginPath(); ctx.arc(0, 0, player.radius * 0.45, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 18; ctx.shadowColor = "#ff2bd6"; ctx.fillStyle = "#ff5be0";
+  ctx.fillRect(player.radius - 4, -5, 22, 10);
+  ctx.restore();
+}
+
+/* ================================================================
+   7. MAIN LOOP + PAUSE + STATE
+   ================================================================ */
+function loop() {
+  // When paused, we simply skip update() and draw() — everything freezes.
+  if (running && !paused) { update(); draw(); }
+  requestAnimationFrame(loop);
+}
+
+// --- PAUSE: freeze play and show the fun fact big and readable ---
+function togglePause() {
+  paused = !paused;
+  if (paused) {
+    if (actx) actx.suspend();                       // pause the music
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    showPauseScreen();
+  } else {
+    if (actx) actx.resume();                        // resume the music
+    pauseScreen.classList.add("hidden");
+  }
+}
+function showPauseScreen() {
+  if (lastFact) {
+    const el = lastFact, cat = CATS[categoryOf(el.n)];
+    pauseFact.innerHTML = `
+      <div class="pf-orb" style="--c:${cat.color}">
+        <span class="pf-num">${el.n}</span><span class="pf-sym">${el.s}</span>
+      </div>
+      <div class="pf-name">${el.name}</div>
+      <div class="pf-cat" style="color:${cat.color}">${cat.label}</div>
+      <div class="pf-fact">${factFor(el)}</div>`;
+  } else {
+    pauseFact.innerHTML = `<div class="pf-name">Take a breath!</div>
+      <div class="pf-fact">Blast an element, then pause any time to read its fun fact here.</div>`;
+  }
+  pauseScreen.classList.remove("hidden");
+}
+
+function startGame(mode) {
+  initAudio();                         // unlock audio/speech (user gesture)
+  applyMode(mode);
+  modeBadge.textContent = MODE_NAMES[mode] + " · " + DIFF[difficulty].label;
+  score = 0; health = 3; wave = 1; frame = 0; shootCooldown = 0;
+  bullets = []; orbs = []; particles = []; lastFact = null;
+  player.x = W / 2; player.y = H / 2; player.invincible = 0;
+  player.radius = 18 * unit; player.speed = 4.2 * unit;   // device-adaptive size/speed
+  mouse.x = W / 2; mouse.y = H / 2;
+  scoreValueEl.textContent = "0"; waveValueEl.textContent = "1";
+  bestValue.textContent = "Best: " + (highScores[mode] || 0);
+  heartEls.forEach(h => h.classList.remove("lost"));
+  startScreen.classList.add("hidden");
+  gameOverScreen.classList.add("hidden");
+  pauseScreen.classList.add("hidden");
+  celebrateScreen.classList.add("hidden");
+  paused = false; running = true;
+}
+function endGame() {
+  running = false; paused = false;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  // Check + save the per-mode high score.
+  const best = highScores[gameMode] || 0;
+  const isNew = score > best;
+  if (isNew) {
+    highScores[gameMode] = score;
+    try { localStorage.setItem("neonElementsHigh", JSON.stringify(highScores)); } catch (e) {}
+  }
+  finalScoreEl.textContent = "Score: " + score;
+  newHighEl.classList.toggle("show", isNew);
+  bestLine.textContent = "Best in " + MODE_NAMES[gameMode] + ": " + (highScores[gameMode] || 0);
+  gameOverScreen.classList.remove("hidden");
+}
+function showStartScreen() {
+  running = false; paused = false;
+  startScreen.classList.remove("hidden");
+  gameOverScreen.classList.add("hidden");
+  pauseScreen.classList.add("hidden");
+  celebrateScreen.classList.add("hidden");
+  targetPanel.classList.add("panel-hidden");
+  legendPanel.classList.add("panel-hidden");
+  discoveryPanel.classList.add("panel-hidden");
+  updateModeBests();
+}
+
+// Show each mode's saved best score on its card in the menu.
+function updateModeBests() {
+  document.querySelectorAll(".mode-card").forEach(c => {
+    const b = highScores[c.dataset.mode] || 0;
+    const el = c.querySelector(".mode-best");
+    if (el) el.textContent = b > 0 ? "🏆 Best: " + b : "";
+  });
+}
+
+// --- Wire up the buttons ---
+document.querySelectorAll(".mode-card").forEach(card => {
+  card.addEventListener("click", () => startGame(card.dataset.mode));
+});
+document.getElementById("restartBtn").addEventListener("click", () => startGame(gameMode));
+document.getElementById("changeModeBtn").addEventListener("click", showStartScreen);
+document.getElementById("resumeBtn").addEventListener("click", () => { if (paused) togglePause(); });
+document.getElementById("pauseBtn").addEventListener("click", () => { if (running) togglePause(); });
+document.getElementById("celebrateBtn").addEventListener("click", () => {
+  celebrateScreen.classList.add("hidden");
+  paused = false; if (actx) actx.resume();   // resume play after celebrating
+});
+
+/* --- SETTINGS controls (difficulty / study mode / sound) --- */
+// Turn sound on/off live (also updates the music volume immediately).
+function setMuted(m) {
+  muted = m;
+  if (musicGain) musicGain.gain.value = muted ? 0 : 0.10;
+  if (muted && "speechSynthesis" in window) speechSynthesis.cancel();
+}
+// Highlight the active button in each segmented control + sync the HUD icons.
+function refreshSettingsUI() {
+  const mark = (segId, val) => document.querySelectorAll("#" + segId + " button")
+    .forEach(b => b.classList.toggle("active",
+      b.dataset.diff === val || b.dataset.study === val ||
+      b.dataset.sound === val || b.dataset.assist === val));
+  mark("diffSeg", difficulty);
+  mark("studySeg", studyMode ? "on" : "off");
+  mark("soundSeg", muted ? "off" : "on");
+  mark("assistSeg", aimAssist ? "on" : "off");
+  muteBtn.textContent = muted ? "🔇" : "🔊";        // HUD icon reflects state
+}
+document.querySelectorAll("#diffSeg button").forEach(b =>
+  b.addEventListener("click", () => { difficulty = b.dataset.diff; refreshSettingsUI(); saveSettings(); }));
+document.querySelectorAll("#studySeg button").forEach(b =>
+  b.addEventListener("click", () => { studyMode = (b.dataset.study === "on"); refreshSettingsUI(); saveSettings(); }));
+document.querySelectorAll("#soundSeg button").forEach(b =>
+  b.addEventListener("click", () => { setMuted(b.dataset.sound === "off"); refreshSettingsUI(); saveSettings(); }));
+document.querySelectorAll("#assistSeg button").forEach(b =>
+  b.addEventListener("click", () => { aimAssist = (b.dataset.assist === "on"); refreshSettingsUI(); saveSettings(); }));
+// HUD sound button toggles mute during play.
+muteBtn.addEventListener("click", () => { setMuted(!muted); refreshSettingsUI(); saveSettings(); });
+
+/* --- FULLSCREEN (most "app-like" feel on mobile web) --- */
+function toggleFullscreen() {
+  const d = document, el = d.documentElement;
+  const isFs = d.fullscreenElement || d.webkitFullscreenElement;
+  if (!isFs) {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el).catch(() => {});      // ignore if the browser blocks it (e.g. iPhone Safari)
+  } else {
+    const exit = d.exitFullscreen || d.webkitExitFullscreen;
+    if (exit) exit.call(d);
+  }
+}
+fullBtn.addEventListener("click", toggleFullscreen);
+
+// Build the static panels once, fill in saved best scores + settings, then start the idle loop.
+buildLegend();
+buildDiscoveryGrid();
+updateModeBests();
+refreshSettingsUI();
+sceneReady = true;     // resize() may now rescale the player live
+loop();
+</script>
+</body>
+</html>

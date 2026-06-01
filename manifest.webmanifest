@@ -1,0 +1,17 @@
+{
+  "name": "Neon Elements — Periodic Table Blaster",
+  "short_name": "Neon Elements",
+  "description": "A neon arcade game: blast glowing periodic-table elements, hear them spoken, and learn fun facts.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05030f",
+  "theme_color": "#05030f",
+  "categories": ["games", "education"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
