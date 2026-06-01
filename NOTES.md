@@ -40,6 +40,7 @@ curl -s https://neuralsparkai-svg.github.io/neon-elements/ | grep -o '<title>[^<
 - Procedural music + SFX; spoken element names (Web Speech)
 - Fun-fact flash + **Study Mode** (auto-pause to read)
 - **4 modes:** Fun Facts · Find the Element · Element Groups · Collection Quest
+- **Between-wave quizzes** (4 question types: symbol↔name, group membership, fun-fact recall; +25 bonus; On/Off setting)
 - Difficulty (Easy/Normal/Hard), **Aim Assist**, mute, per-mode high scores
 - **Mobile build:** DPR-crisp rendering, responsive layout, dual-thumb touch + aim assist, safe-area, fullscreen button
 - **Installable PWA:** manifest + icons (Add to Home Screen, full-screen)
@@ -52,4 +53,4 @@ curl -s https://neuralsparkai-svg.github.io/neon-elements/ | grep -o '<title>[^<
 - README logo may render **static on GitHub** (GitHub sanitizes SVG animation); it animates on the live site and in browsers.
 
 ## 🛣️ Roadmap (learning features)
-Compound crafting (Na+Cl→salt) · electron shells/config · states of matter · periodic-trend boss waves · between-wave quizzes · classroom/teacher mode · more languages. See README for details.
+Compound crafting (Na+Cl→salt) · electron shells/config · states of matter · periodic-trend boss waves · classroom/teacher mode · more languages. See README for details.

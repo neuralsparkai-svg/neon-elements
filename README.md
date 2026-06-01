@@ -29,7 +29,7 @@ You stand in a neon arena with an energy blaster. Glowing orbs drift toward you 
 
 It's the feeling of an arcade survival game, with the periodic table doing the teaching in the background. You're not "studying" — you're *playing* — but by the end of a session you've seen, heard, and reacted to dozens of elements.
 
-> **The core idea:** repetition + reaction + reward. When you have to *recognize* "O — Oxygen" fast enough to shoot it, and you *hear* it spoken the instant you do, the element stops being a flashcard and becomes muscle memory.
+> **The core idea:** repetition + reaction + reward. When you have to *recognize* "O — Oxygen" fast enough to shoot it, and you *hear* it spoken the instant you do, the element stops being a flashcard and becomes muscle memory. Then a **quick quiz between waves** turns that recognition into active recall.
 
 ---
 
@@ -40,6 +40,7 @@ It's the feeling of an arcade survival game, with the periodic table doing the t
 - 💡 **Fun facts on every blast** — *"Tungsten: has the highest melting point — it glows in light bulbs!"*
 - 🧪 **All 118 elements**, weighted so famous ones (H, O, Fe, Au…) appear most, but every element can show up.
 - 📖 **Study Mode** — auto-pauses on each hit so you can actually read the fact, then resume.
+- ❓ **Between-wave quizzes** — a quick multiple-choice question after every wave (symbol ↔ name, element groups, fun-fact recall) for bonus points. Toggle on/off.
 - 🎚️ **Difficulty** (Easy / Normal / Hard) and **Aim Assist** for younger players.
 - 🎵 **Generated neon soundtrack + sound effects** — no audio files, zero load time.
 - 🏆 **High scores** saved per mode, and a **"collect all 118"** progress board.
@@ -75,7 +76,6 @@ Atomica is built to grow into a full periodic-table learning playground. Planned
 - ⚡ **Electron shells & configuration** — orbs that reveal an element's electron layout.
 - 🌡️ **States of matter** — solid / liquid / gas challenges (only Mercury is a liquid metal — prove it!).
 - 📈 **Periodic trends** — boss waves organized by period or group to teach electronegativity & reactivity.
-- 🧩 **Quick quizzes between waves** — "Which one is a halogen?" for active recall.
 - 👩‍🏫 **Teacher / classroom mode** — pick a set of elements to focus a lesson, with a simple progress view.
 - 🌍 **More languages** for spoken names and facts.
 
