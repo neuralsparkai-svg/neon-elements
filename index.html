@@ -294,6 +294,65 @@
   .quiz-feedback.no { color: #ff7b9c; text-shadow: 0 0 12px #ff2b6d; }
 
   /* ============================================================
+     ELEMENT SPOTLIGHT — cinematic full-screen "Discovered!" reveal
+     with a real-world, element-themed background image.
+     ============================================================ */
+  #spotlight { background: #000; padding: 0; overflow: hidden; }
+  #spotBg {
+    position: absolute; inset: 0; z-index: 0;
+    background-size: cover; background-position: center; transform: scale(1.04);
+  }
+  #spotBg.kb { animation: kenburns 9s ease-out forwards; }   /* slow cinematic zoom */
+  @keyframes kenburns { from { transform: scale(1.04); } to { transform: scale(1.15); } }
+  #spotScrim {
+    position: absolute; inset: 0; z-index: 1;
+    background:
+      radial-gradient(ellipse at center, rgba(5,3,15,0) 35%, rgba(5,3,15,0.55) 100%),
+      linear-gradient(to bottom, rgba(5,3,15,0.45) 0%, rgba(5,3,15,0.05) 38%, rgba(5,3,15,0.92) 100%);
+  }
+  .spot-inner {
+    position: relative; z-index: 2; width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; text-align: center;
+    padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  }
+  .spot-inner > * { opacity: 0; }
+  .spot-inner.animate > * { animation: spotUp 0.6s cubic-bezier(.2,.7,.2,1) forwards; }
+  .spot-inner.animate > *:nth-child(1) { animation-delay: .05s; }
+  .spot-inner.animate > *:nth-child(2) { animation-delay: .15s; }
+  .spot-inner.animate > *:nth-child(3) { animation-delay: .25s; }
+  .spot-inner.animate > *:nth-child(4) { animation-delay: .38s; }
+  .spot-inner.animate > *:nth-child(5) { animation-delay: .5s; }
+  .spot-inner.animate > *:nth-child(6) { animation-delay: .62s; }
+  @keyframes spotUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+
+  .spot-eyebrow {
+    font-size: clamp(11px, 3vw, 14px); letter-spacing: 6px; text-transform: uppercase;
+    color: #00eaff; text-shadow: 0 0 14px #00eaff; font-weight: bold;
+  }
+  .spot-symbol {
+    width: clamp(86px, 22vw, 118px); height: clamp(86px, 22vw, 118px); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(40px, 11vw, 58px); font-weight: 900; color: #fff;
+    background: radial-gradient(circle, color-mix(in srgb, var(--c) 45%, rgba(8,5,24,0.6)), rgba(8,5,24,0.6));
+    border: 3px solid var(--c);
+    box-shadow: 0 0 50px var(--c), inset 0 0 26px color-mix(in srgb, var(--c) 50%, transparent);
+    text-shadow: 0 0 18px var(--c);
+  }
+  .spot-name { font-size: clamp(34px, 9vw, 58px); font-weight: 900; color: #fff; text-shadow: 0 0 22px var(--c); line-height: 1; }
+  .spot-num { font-size: clamp(13px, 3.6vw, 17px); letter-spacing: 3px; text-transform: uppercase; color: var(--c); font-weight: bold; }
+  .spot-card {
+    max-width: min(640px, 92vw); display: flex; flex-direction: column; gap: 10px; margin-top: 4px;
+    background: rgba(8,5,24,0.55); backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 18px; padding: 16px 22px;
+  }
+  .spot-what { font-size: clamp(15px, 4vw, 20px); color: #fff; line-height: 1.45; }
+  .spot-real {
+    font-size: clamp(14px, 3.8vw, 19px); color: #ffe9a8; line-height: 1.45; font-weight: bold;
+    border-top: 1px solid rgba(255,255,255,0.14); padding-top: 10px;
+  }
+
+  /* ============================================================
      RESPONSIVE + TOUCH POLISH (the mobile conversion lives here)
      Later in the stylesheet = these win over the desktop defaults.
      ============================================================ */
@@ -448,6 +507,13 @@
       </div>
     </div>
     <div class="setting">
+      <span class="setting-label">Spotlights</span>
+      <div class="seg" id="spotSeg">
+        <button data-spot="on">On</button>
+        <button data-spot="off">Off</button>
+      </div>
+    </div>
+    <div class="setting">
       <span class="setting-label">Sound</span>
       <div class="seg" id="soundSeg">
         <button data-sound="on">🔊 On</button>
@@ -472,6 +538,23 @@
   <div id="pauseFact"></div>
   <button class="play-btn" id="resumeBtn">▶ RESUME</button>
   <div class="hint">Press <b>P</b> or <b>Esc</b> to resume</div>
+</div>
+
+<!-- ELEMENT SPOTLIGHT (cinematic real-world reveal) -->
+<div id="spotlight" class="overlay hidden">
+  <div id="spotBg"></div>
+  <div id="spotScrim"></div>
+  <div class="spot-inner" id="spotInner">
+    <div class="spot-eyebrow">✦ Element Discovered ✦</div>
+    <div class="spot-symbol" id="spotSymbol">Au</div>
+    <div class="spot-name" id="spotName">Gold</div>
+    <div class="spot-num" id="spotNum">#79 · Transition Metal</div>
+    <div class="spot-card">
+      <div class="spot-what" id="spotWhat"></div>
+      <div class="spot-real" id="spotReal"></div>
+    </div>
+    <button class="play-btn" id="spotContinue">▶ CONTINUE</button>
+  </div>
 </div>
 
 <!-- BETWEEN-WAVE QUIZ SCREEN -->
@@ -627,6 +710,31 @@ const FACTS = {
 function factFor(el) {
   return FACTS[el.s] || `${el.name} is element number ${el.n} on the periodic table!`;
 }
+
+// ---- ELEMENT SPOTLIGHTS ----
+// Featured elements with a cinematic real-world background image + richer info.
+// The first time you destroy one of these in a game, a full-screen "discovered"
+// reveal plays. (Sample set of 6 — extend this map to cover the whole table.)
+const SPOTLIGHTS = {
+  C:  { img: "img/el-c.jpg",
+        what: "Carbon is the building block of all living things — and the same element appears as soft pencil 'lead' AND as the hardest diamond.",
+        real: "In the real world: pencils, diamonds, charcoal, and every plant and animal — all carbon." },
+  O:  { img: "img/el-o.jpg",
+        what: "Oxygen is the gas you can't live without. It makes up about 21% of the air you breathe.",
+        real: "In the real world: every breath you take — and the reason a fire can burn. Divers and astronauts carry tanks of it." },
+  Ne: { img: "img/el-ne.jpg",
+        what: "Neon is a noble gas that glows a brilliant orange-red the instant electricity passes through it.",
+        real: "In the real world: the original glow behind dazzling 'neon signs' that light up cities at night." },
+  Fe: { img: "img/el-fe.jpg",
+        what: "Iron is a strong, magnetic metal — and the main metal in Earth's core.",
+        real: "In the real world: it becomes steel for bridges and skyscrapers, and it carries oxygen in your blood." },
+  Cu: { img: "img/el-cu.jpg",
+        what: "Copper is a reddish metal that carries electricity better than almost any affordable material.",
+        real: "In the real world: the wires in your walls and chargers — and the metal that turned the Statue of Liberty green." },
+  Au: { img: "img/el-au.jpg",
+        what: "Gold is a rare, shiny metal that never rusts or tarnishes, so it stays brilliant forever.",
+        real: "In the real world: treasure, jewelry, Olympic medals — and the tiny gold connectors inside your phone." }
+};
 
 /* ================================================================
    2. AUDIO ENGINE — procedural music + SFX + spoken names.
@@ -789,6 +897,15 @@ const quizQEl      = document.getElementById("quizQ");
 const quizOptsEl   = document.getElementById("quizOpts");
 const quizFeedbackEl = document.getElementById("quizFeedback");
 const quizContinueBtn = document.getElementById("quizContinue");
+const spotlight    = document.getElementById("spotlight");
+const spotBg       = document.getElementById("spotBg");
+const spotInner    = document.getElementById("spotInner");
+const spotSymbol   = document.getElementById("spotSymbol");
+const spotName     = document.getElementById("spotName");
+const spotNum      = document.getElementById("spotNum");
+const spotWhat     = document.getElementById("spotWhat");
+const spotReal     = document.getElementById("spotReal");
+const spotContinueBtn = document.getElementById("spotContinue");
 
 const keys = {};
 addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -801,6 +918,7 @@ addEventListener("contextmenu", e => e.preventDefault());
 // Pause / resume with P or Esc. During a quiz, those keys continue (once answered).
 addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
+  if (spotActive) { resumeFromSpotlight(); return; }   // any key dismisses the spotlight
   if (quizActive) {
     if (k === "p" || k === "escape" || k === "enter" || k === " ") resumeFromQuiz();
     return;
@@ -869,6 +987,8 @@ let bullets = [], orbs = [], particles = [];
 let lastFact = null;             // last element destroyed (shown big on pause)
 let target = null;               // current target element (Find mode)
 let quizActive = false, quizAnswered = false, currentQuiz = null;  // between-wave quiz state
+let spotActive = false;                 // element spotlight showing?
+const spotlightSeen = new Set();        // featured elements already spotlighted this game
 const discovered = new Set();    // atomic numbers collected (Collection mode)
 
 // Per-mode high scores, saved in the browser so they persist between visits.
@@ -882,6 +1002,7 @@ let studyMode = false;       // auto-pause on each destroy to read the fact
 let muted = false;           // all sound + speech off
 let aimAssist = true;        // nudge shots toward the nearest orb (great for kids/touch)
 let quizzes = true;          // show a quick quiz between waves
+let spotlights = true;       // cinematic full-screen reveal for featured elements
 try {
   const s = JSON.parse(localStorage.getItem("neonElementsSettings") || "{}");
   if (s.difficulty) difficulty = s.difficulty;
@@ -889,10 +1010,11 @@ try {
   if (typeof s.muted === "boolean") muted = s.muted;
   if (typeof s.aimAssist === "boolean") aimAssist = s.aimAssist;
   if (typeof s.quizzes === "boolean") quizzes = s.quizzes;
+  if (typeof s.spotlights === "boolean") spotlights = s.spotlights;
 } catch (e) {}
 function saveSettings() {
   try { localStorage.setItem("neonElementsSettings",
-    JSON.stringify({ difficulty, studyMode, muted, aimAssist, quizzes })); } catch (e) {}
+    JSON.stringify({ difficulty, studyMode, muted, aimAssist, quizzes, spotlights })); } catch (e) {}
 }
 
 // Difficulty tuning: orb speed multiplier + spawn-rate multiplier.
@@ -1164,10 +1286,55 @@ function destroyElement(el) {
   }
 
   score += pts; scoreValueEl.textContent = score;
-  showFact(el);
 
+  // Featured element? The first time you hit it this game, play the cinematic
+  // real-world spotlight instead of the quick fact flash.
+  const sp = SPOTLIGHTS[el.s];
+  if (spotlights && sp && !spotlightSeen.has(el.s) && !paused) {
+    spotlightSeen.add(el.s);
+    triggerSpotlight(el, sp);
+    return;
+  }
+
+  showFact(el);
   // Study Mode: freeze the game on each destroy so the fact can be read.
   if (studyMode && running && !paused) studyPause();
+}
+
+/* ================================================================
+   ELEMENT SPOTLIGHT — cinematic full-screen reveal with a real-world
+   themed background image. Pauses the game; tap/Continue to resume.
+   ================================================================ */
+let spotOpenedAt = 0;
+function triggerSpotlight(el, sp) {
+  spotActive = true; paused = true;
+  spotOpenedAt = performance.now();
+  if (actx) actx.suspend();
+
+  const cat = CATS[categoryOf(el.n)];
+  spotBg.style.backgroundImage = `url("${sp.img}")`;
+  spotSymbol.textContent = el.s;
+  spotSymbol.style.setProperty("--c", cat.color);
+  spotName.textContent = el.name;
+  spotName.style.setProperty("--c", cat.color);
+  spotNum.textContent = `#${el.n}  ·  ${cat.label}`;
+  spotNum.style.color = cat.color;
+  spotWhat.textContent = sp.what;
+  spotReal.textContent = sp.real;
+
+  // Replay the cinematic entrance + Ken Burns zoom each time.
+  spotBg.classList.remove("kb"); spotInner.classList.remove("animate");
+  void spotBg.offsetWidth;
+  spotBg.classList.add("kb"); spotInner.classList.add("animate");
+
+  spotlight.classList.remove("hidden");
+}
+function resumeFromSpotlight() {
+  if (!spotActive) return;
+  if (performance.now() - spotOpenedAt < 500) return;   // ignore accidental instant dismiss
+  spotlight.classList.add("hidden");
+  spotActive = false; paused = false;
+  if (actx) actx.resume();
 }
 
 // Auto-pause used by Study Mode. Unlike a manual pause, it does NOT cancel
@@ -1349,7 +1516,7 @@ function loop() {
 
 // --- PAUSE: freeze play and show the fun fact big and readable ---
 function togglePause() {
-  if (quizActive) return;        // the quiz manages its own pause
+  if (quizActive || spotActive) return;   // quiz/spotlight manage their own pause
   paused = !paused;
   if (paused) {
     if (actx) actx.suspend();                       // pause the music
@@ -1395,6 +1562,7 @@ function startGame(mode) {
   celebrateScreen.classList.add("hidden");
   quizScreen.classList.add("hidden");
   quizActive = false; quizAnswered = false; currentQuiz = null;
+  spotlight.classList.add("hidden"); spotActive = false; spotlightSeen.clear();
   paused = false; running = true;
 }
 function endGame() {
@@ -1458,12 +1626,14 @@ function refreshSettingsUI() {
   const mark = (segId, val) => document.querySelectorAll("#" + segId + " button")
     .forEach(b => b.classList.toggle("active",
       b.dataset.diff === val || b.dataset.study === val ||
-      b.dataset.sound === val || b.dataset.assist === val || b.dataset.quiz === val));
+      b.dataset.sound === val || b.dataset.assist === val ||
+      b.dataset.quiz === val || b.dataset.spot === val));
   mark("diffSeg", difficulty);
   mark("studySeg", studyMode ? "on" : "off");
   mark("soundSeg", muted ? "off" : "on");
   mark("assistSeg", aimAssist ? "on" : "off");
   mark("quizSeg", quizzes ? "on" : "off");
+  mark("spotSeg", spotlights ? "on" : "off");
   muteBtn.textContent = muted ? "🔇" : "🔊";        // HUD icon reflects state
 }
 document.querySelectorAll("#diffSeg button").forEach(b =>
@@ -1476,7 +1646,14 @@ document.querySelectorAll("#assistSeg button").forEach(b =>
   b.addEventListener("click", () => { aimAssist = (b.dataset.assist === "on"); refreshSettingsUI(); saveSettings(); }));
 document.querySelectorAll("#quizSeg button").forEach(b =>
   b.addEventListener("click", () => { quizzes = (b.dataset.quiz === "on"); refreshSettingsUI(); saveSettings(); }));
+document.querySelectorAll("#spotSeg button").forEach(b =>
+  b.addEventListener("click", () => { spotlights = (b.dataset.spot === "on"); refreshSettingsUI(); saveSettings(); }));
 quizContinueBtn.addEventListener("click", resumeFromQuiz);
+spotContinueBtn.addEventListener("click", e => { e.stopPropagation(); resumeFromSpotlight(); });
+spotlight.addEventListener("click", resumeFromSpotlight);   // tap anywhere to continue
+
+// Preload the featured spotlight images so the reveal is instant (no flash).
+Object.values(SPOTLIGHTS).forEach(sp => { const im = new Image(); im.src = sp.img; });
 // HUD sound button toggles mute during play.
 muteBtn.addEventListener("click", () => { setMuted(!muted); refreshSettingsUI(); saveSettings(); });
 
