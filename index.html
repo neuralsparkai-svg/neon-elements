@@ -297,21 +297,49 @@
      ELEMENT SPOTLIGHT — cinematic full-screen "Discovered!" reveal
      with a real-world, element-themed background image.
      ============================================================ */
-  #spotlight { background: #000; padding: 0; overflow: hidden; }
+  /* transparent so the frozen arena shows through while the orb morphs in */
+  #spotlight { background: transparent; padding: 0; overflow: hidden; }
   #spotBg {
     position: absolute; inset: 0; z-index: 0;
     background-size: cover; background-position: center; transform: scale(1.04);
+    opacity: 0; transition: opacity 0.45s ease;
   }
   #spotBg.kb { animation: kenburns 9s ease-out forwards; }   /* slow cinematic zoom */
   @keyframes kenburns { from { transform: scale(1.04); } to { transform: scale(1.15); } }
   #spotScrim {
-    position: absolute; inset: 0; z-index: 1;
+    position: absolute; inset: 0; z-index: 1; opacity: 0; transition: opacity 0.45s ease;
     background:
       radial-gradient(ellipse at center, rgba(5,3,15,0) 35%, rgba(5,3,15,0.55) 100%),
       linear-gradient(to bottom, rgba(5,3,15,0.45) 0%, rgba(5,3,15,0.05) 38%, rgba(5,3,15,0.92) 100%);
   }
+  #spotlight.shown #spotBg, #spotlight.shown #spotScrim { opacity: 1; }
+
+  /* themed particle layer (gold sparks, diamond glints, neon wisps…) */
+  #fxCanvas { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+
+  /* the orb that flies to center and grows into the badge */
+  #spotMorph {
+    position: absolute; z-index: 4; border-radius: 50%; pointer-events: none;
+    display: flex; align-items: center; justify-content: center; font-weight: 900; color: #fff;
+    background: radial-gradient(circle, color-mix(in srgb, var(--c) 55%, rgba(8,5,24,0.7)), rgba(8,5,24,0.75));
+    border: 3px solid var(--c);
+    box-shadow: 0 0 55px var(--c), inset 0 0 26px color-mix(in srgb, var(--c) 50%, transparent);
+    text-shadow: 0 0 18px var(--c);
+  }
+
+  /* white flash that masks the cut from morph → full reveal */
+  #spotFlash {
+    position: absolute; inset: 0; z-index: 5; pointer-events: none; opacity: 0;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.95), rgba(255,255,255,0) 62%);
+  }
+  #spotFlash.go { animation: spotFlash 0.5s ease-out; }
+  @keyframes spotFlash {
+    0%   { opacity: 0; transform: scale(0.55); }
+    22%  { opacity: 1; }
+    100% { opacity: 0; transform: scale(1.45); }
+  }
   .spot-inner {
-    position: relative; z-index: 2; width: 100%; height: 100%;
+    position: relative; z-index: 3; width: 100%; height: 100%;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 10px; text-align: center;
     padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
@@ -544,6 +572,7 @@
 <div id="spotlight" class="overlay hidden">
   <div id="spotBg"></div>
   <div id="spotScrim"></div>
+  <canvas id="fxCanvas"></canvas>
   <div class="spot-inner" id="spotInner">
     <div class="spot-eyebrow">✦ Element Discovered ✦</div>
     <div class="spot-symbol" id="spotSymbol">Au</div>
@@ -555,6 +584,8 @@
     </div>
     <button class="play-btn" id="spotContinue">▶ CONTINUE</button>
   </div>
+  <div id="spotMorph" style="display:none;"></div>
+  <div id="spotFlash" style="display:none;"></div>
 </div>
 
 <!-- BETWEEN-WAVE QUIZ SCREEN -->
@@ -716,22 +747,22 @@ function factFor(el) {
 // The first time you destroy one of these in a game, a full-screen "discovered"
 // reveal plays. (Sample set of 6 — extend this map to cover the whole table.)
 const SPOTLIGHTS = {
-  C:  { img: "img/el-c.jpg",
+  C:  { img: "img/el-c.jpg", fx: "sparkle",
         what: "Carbon is the building block of all living things — and the same element appears as soft pencil 'lead' AND as the hardest diamond.",
         real: "In the real world: pencils, diamonds, charcoal, and every plant and animal — all carbon." },
-  O:  { img: "img/el-o.jpg",
+  O:  { img: "img/el-o.jpg", fx: "bubble",
         what: "Oxygen is the gas you can't live without. It makes up about 21% of the air you breathe.",
         real: "In the real world: every breath you take — and the reason a fire can burn. Divers and astronauts carry tanks of it." },
-  Ne: { img: "img/el-ne.jpg",
+  Ne: { img: "img/el-ne.jpg", fx: "wisp",
         what: "Neon is a noble gas that glows a brilliant orange-red the instant electricity passes through it.",
         real: "In the real world: the original glow behind dazzling 'neon signs' that light up cities at night." },
-  Fe: { img: "img/el-fe.jpg",
+  Fe: { img: "img/el-fe.jpg", fx: "ember",
         what: "Iron is a strong, magnetic metal — and the main metal in Earth's core.",
         real: "In the real world: it becomes steel for bridges and skyscrapers, and it carries oxygen in your blood." },
-  Cu: { img: "img/el-cu.jpg",
+  Cu: { img: "img/el-cu.jpg", fx: "emberCu",
         what: "Copper is a reddish metal that carries electricity better than almost any affordable material.",
         real: "In the real world: the wires in your walls and chargers — and the metal that turned the Statue of Liberty green." },
-  Au: { img: "img/el-au.jpg",
+  Au: { img: "img/el-au.jpg", fx: "spark",
         what: "Gold is a rare, shiny metal that never rusts or tarnishes, so it stays brilliant forever.",
         real: "In the real world: treasure, jewelry, Olympic medals — and the tiny gold connectors inside your phone." }
 };
@@ -847,6 +878,7 @@ let W, H;              // logical (CSS-pixel) size — all game math uses these
 let DPR = 1;          // device pixel ratio, capped for performance
 let unit = 1;         // device-adaptive scale so the game feels consistent everywhere
 let sceneReady = false;
+let fxRunning = false;   // spotlight particle layer active?
 
 function resize() {
   // Render at the screen's true pixel density so everything is razor sharp on
@@ -863,6 +895,7 @@ function resize() {
   // both feel right (orbs aren't huge on phones; not tiny on desktops).
   unit = Math.max(0.7, Math.min(1.12, Math.min(W, H) / 760));
   if (sceneReady) { player.radius = 18 * unit; player.speed = 4.2 * unit; }
+  if (fxRunning) fxResize();   // keep the spotlight FX layer matched to the screen
 }
 addEventListener("resize", resize);
 addEventListener("orientationchange", resize);
@@ -906,6 +939,10 @@ const spotNum      = document.getElementById("spotNum");
 const spotWhat     = document.getElementById("spotWhat");
 const spotReal     = document.getElementById("spotReal");
 const spotContinueBtn = document.getElementById("spotContinue");
+const spotMorph    = document.getElementById("spotMorph");
+const spotFlash    = document.getElementById("spotFlash");
+const fxCanvas     = document.getElementById("fxCanvas");
+const fxCtx        = fxCanvas.getContext("2d");
 
 const keys = {};
 addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -1240,8 +1277,9 @@ function update() {
       const b = bullets[j];
       if (Math.hypot(o.x - b.x, o.y - b.y) < o.radius + b.radius) {
         burst(o.x, o.y, o.color);
+        const ox = o.x, oy = o.y, or = o.radius;
         orbs.splice(i, 1); bullets.splice(j, 1);
-        destroyElement(o.el);
+        destroyElement(o.el, ox, oy, or);
         break;
       }
     }
@@ -1268,7 +1306,8 @@ function update() {
 }
 
 // What happens when an element orb is destroyed — depends on the mode.
-function destroyElement(el) {
+// x,y,r = where the orb was (used to launch the spotlight morph).
+function destroyElement(el, x, y, r) {
   lastFact = el;                                  // remember for the pause screen
   let pts = 10 + Math.floor(el.n / 10);           // heavier = a little more
   sfxDestroy();
@@ -1292,7 +1331,7 @@ function destroyElement(el) {
   const sp = SPOTLIGHTS[el.s];
   if (spotlights && sp && !spotlightSeen.has(el.s) && !paused) {
     spotlightSeen.add(el.s);
-    triggerSpotlight(el, sp);
+    triggerSpotlight(el, sp, x, y, r);
     return;
   }
 
@@ -1305,36 +1344,180 @@ function destroyElement(el) {
    ELEMENT SPOTLIGHT — cinematic full-screen reveal with a real-world
    themed background image. Pauses the game; tap/Continue to resume.
    ================================================================ */
-let spotOpenedAt = 0;
-function triggerSpotlight(el, sp) {
+let spotOpenedAt = 0, spotTimer = 0;
+function triggerSpotlight(el, sp, x, y, r) {
   spotActive = true; paused = true;
   spotOpenedAt = performance.now();
   if (actx) actx.suspend();
 
   const cat = CATS[categoryOf(el.n)];
   spotBg.style.backgroundImage = `url("${sp.img}")`;
-  spotSymbol.textContent = el.s;
-  spotSymbol.style.setProperty("--c", cat.color);
-  spotName.textContent = el.name;
-  spotName.style.setProperty("--c", cat.color);
-  spotNum.textContent = `#${el.n}  ·  ${cat.label}`;
-  spotNum.style.color = cat.color;
+  spotSymbol.textContent = el.s; spotSymbol.style.setProperty("--c", cat.color);
+  spotName.textContent = el.name; spotName.style.setProperty("--c", cat.color);
+  spotNum.textContent = `#${el.n}  ·  ${cat.label}`; spotNum.style.color = cat.color;
   spotWhat.textContent = sp.what;
   spotReal.textContent = sp.real;
 
-  // Replay the cinematic entrance + Ken Burns zoom each time.
-  spotBg.classList.remove("kb"); spotInner.classList.remove("animate");
-  void spotBg.offsetWidth;
-  spotBg.classList.add("kb"); spotInner.classList.add("animate");
+  // Reset the reveal so it replays cleanly every time.
+  spotInner.classList.remove("animate");
+  spotBg.classList.remove("kb");
+  spotFlash.classList.remove("go"); spotFlash.style.display = "none";
+  spotlight.classList.remove("shown", "hidden");
 
-  spotlight.classList.remove("hidden");
+  // Lay the overlay out (content invisible) so we can measure where the badge lands.
+  const rect = spotSymbol.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+  const target = rect.width || 110;
+
+  // --- ORB MORPH: place a disc at the orb, then fly it to the badge spot ---
+  spotMorph.textContent = el.s;
+  spotMorph.style.setProperty("--c", cat.color);
+  spotMorph.style.width = spotMorph.style.height = target + "px";
+  spotMorph.style.left = (cx - target / 2) + "px";
+  spotMorph.style.top = (cy - target / 2) + "px";
+  spotMorph.style.fontSize = (target * 0.5) + "px";
+  const startScale = Math.max(0.18, (2 * (r || 20)) / target);
+  spotMorph.style.transition = "none";
+  spotMorph.style.opacity = "1";
+  spotMorph.style.transform = `translate(${x - cx}px, ${y - cy}px) scale(${startScale})`;
+  spotMorph.style.display = "flex";
+  void spotMorph.offsetWidth;                       // commit the start state
+  spotMorph.style.transition = "transform 0.5s cubic-bezier(.3,.1,.2,1)";
+  spotMorph.style.transform = "translate(0,0) scale(1)";
+
+  // Fade in the themed world + start ambient particles as the orb travels.
+  void spotlight.offsetWidth;
+  spotlight.classList.add("shown");
+  startFx(sp.fx);
+
+  // Arrival: flash, reveal the text, big themed burst, retire the morph.
+  if (spotTimer) clearTimeout(spotTimer);
+  spotTimer = setTimeout(spotlightArrive, 500);
 }
+
+function spotlightArrive() {
+  spotFlash.style.display = "block";
+  spotFlash.classList.remove("go"); void spotFlash.offsetWidth; spotFlash.classList.add("go");
+  spotInner.classList.add("animate");
+  spotBg.classList.add("kb");
+  spotMorph.style.transition = "opacity 0.25s ease";
+  spotMorph.style.opacity = "0";
+  fxBurst();
+}
+
 function resumeFromSpotlight() {
   if (!spotActive) return;
   if (performance.now() - spotOpenedAt < 500) return;   // ignore accidental instant dismiss
+  if (spotTimer) { clearTimeout(spotTimer); spotTimer = 0; }
+  stopFx();
+  spotMorph.style.display = "none";
+  spotFlash.style.display = "none"; spotFlash.classList.remove("go");
+  spotInner.classList.remove("animate");
+  spotBg.classList.remove("kb");
+  spotlight.classList.remove("shown");
   spotlight.classList.add("hidden");
   spotActive = false; paused = false;
   if (actx) actx.resume();
+}
+
+/* ================================================================
+   THEMED PARTICLE FX (spotlight only) — runs on its own canvas + rAF
+   loop, independent of the (paused) game loop.
+   ================================================================ */
+const FX_STYLES = {
+  spark:   { kind: "spark",  colors: ["#ffd23d", "#ffae00", "#fff3b0"] },  // Gold
+  sparkle: { kind: "sparkle",colors: ["#ffffff", "#9fdcff", "#7cf0ff"] },  // Carbon (diamond glints)
+  wisp:    { kind: "wisp",   colors: ["#ff2bd6", "#b14bff", "#00eaff"] },  // Neon gas
+  ember:   { kind: "ember",  colors: ["#ff7b3d", "#ffae00", "#ff4d2b"] },  // Iron (forge sparks)
+  emberCu: { kind: "ember",  colors: ["#ff9a3d", "#ffb86b", "#ff6a3d"] },  // Copper
+  bubble:  { kind: "bubble", colors: ["#9fe8ff", "#ffffff", "#6fc8ff"] }   // Oxygen (rising bubbles)
+};
+let fxParticles = [], fxEmitter = null, fxRAF = 0;
+
+function fxResize() {
+  fxCanvas.width = Math.round(innerWidth * DPR);
+  fxCanvas.height = Math.round(innerHeight * DPR);
+  fxCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+function startFx(styleKey) {
+  fxEmitter = FX_STYLES[styleKey] || FX_STYLES.spark;
+  fxParticles = [];
+  fxResize();
+  fxRunning = true;
+  if (!fxRAF) fxRAF = requestAnimationFrame(fxStep);
+}
+function stopFx() {
+  fxRunning = false; fxParticles = [];
+  if (fxRAF) { cancelAnimationFrame(fxRAF); fxRAF = 0; }
+  fxCtx.clearRect(0, 0, innerWidth, innerHeight);
+}
+function fxColor() { const c = fxEmitter.colors; return c[Math.floor(Math.random() * c.length)]; }
+
+// A celebratory radial burst from the center when the reveal lands.
+function fxBurst() {
+  const cx = innerWidth / 2, cy = innerHeight / 2;
+  for (let i = 0; i < 70; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 8;
+    fxParticles.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+                       life: 1, size: 2 + Math.random() * 3, color: fxColor(), kind: "burst", tw: 0 });
+  }
+}
+// Continuous ambient particles whose behavior matches the element.
+function fxSpawnAmbient() {
+  const k = fxEmitter.kind, w = innerWidth, h = innerHeight;
+  if (k === "spark" || k === "ember") {
+    fxParticles.push({ x: Math.random() * w, y: h + 10, vx: (Math.random() - 0.5) * 0.7,
+      vy: -(1.5 + Math.random() * 2.6), life: 1, size: 1.5 + Math.random() * 2.5, color: fxColor(), kind: k, tw: Math.random() * 6 });
+  } else if (k === "bubble") {
+    fxParticles.push({ x: Math.random() * w, y: h + 14, vx: (Math.random() - 0.5) * 0.4,
+      vy: -(0.8 + Math.random() * 1.5), life: 1, size: 4 + Math.random() * 9, color: fxColor(), kind: k, tw: Math.random() * 6 });
+  } else if (k === "wisp") {
+    fxParticles.push({ x: Math.random() * w, y: h + 24, vx: (Math.random() - 0.5) * 0.5,
+      vy: -(0.5 + Math.random() * 1.2), life: 1, size: 18 + Math.random() * 32, color: fxColor(), kind: k, tw: Math.random() * 6 });
+  } else if (k === "sparkle") {
+    fxParticles.push({ x: Math.random() * w, y: Math.random() * h, vx: 0, vy: 0,
+      life: 1, size: 2 + Math.random() * 3, color: fxColor(), kind: k, tw: Math.random() * Math.PI * 2 });
+  }
+}
+function fxStep() {
+  if (!fxRunning) { fxRAF = 0; return; }
+  fxCtx.clearRect(0, 0, innerWidth, innerHeight);
+  const rate = fxEmitter.kind === "wisp" ? 1 : (fxEmitter.kind === "sparkle" ? 2 : 3);
+  for (let i = 0; i < rate; i++) fxSpawnAmbient();
+
+  for (let i = fxParticles.length - 1; i >= 0; i--) {
+    const p = fxParticles[i];
+    if (p.kind === "sparkle") { p.tw += 0.15; p.life -= 0.012; }
+    else if (p.kind === "burst") { p.x += p.vx; p.y += p.vy; p.vx *= 0.93; p.vy = p.vy * 0.93 + 0.05; p.life -= 0.02; }
+    else {
+      p.x += p.vx; p.y += p.vy; p.tw += 0.1;
+      if (p.kind === "spark" || p.kind === "ember") { p.vy += 0.02; p.vx += (Math.random() - 0.5) * 0.12; p.life -= 0.008; }
+      else if (p.kind === "bubble") { p.x += Math.sin(p.tw) * 0.4; p.life -= 0.006; }
+      else if (p.kind === "wisp") { p.x += Math.sin(p.tw * 0.5) * 0.6; p.life -= 0.005; }
+    }
+    if (p.life <= 0 || p.y < -60) { fxParticles.splice(i, 1); continue; }
+
+    let alpha = p.life;
+    if (p.kind === "sparkle") alpha = Math.abs(Math.sin(p.tw)) * p.life;
+    fxCtx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    fxCtx.shadowBlur = p.kind === "wisp" ? 30 : 12;
+    fxCtx.shadowColor = p.color;
+    fxCtx.fillStyle = p.color;
+    if (p.kind === "sparkle") {
+      const s = p.size * 2.6;
+      fxCtx.strokeStyle = p.color; fxCtx.lineWidth = 1.4;
+      fxCtx.beginPath();
+      fxCtx.moveTo(p.x - s, p.y); fxCtx.lineTo(p.x + s, p.y);
+      fxCtx.moveTo(p.x, p.y - s); fxCtx.lineTo(p.x, p.y + s);
+      fxCtx.stroke();
+      fxCtx.beginPath(); fxCtx.arc(p.x, p.y, p.size * 0.6, 0, Math.PI * 2); fxCtx.fill();
+    } else {
+      fxCtx.beginPath(); fxCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2); fxCtx.fill();
+    }
+  }
+  fxCtx.globalAlpha = 1; fxCtx.shadowBlur = 0;
+  if (fxParticles.length > 260) fxParticles.splice(0, fxParticles.length - 260);  // perf cap
+  fxRAF = requestAnimationFrame(fxStep);
 }
 
 // Auto-pause used by Study Mode. Unlike a manual pause, it does NOT cancel
@@ -1562,7 +1745,10 @@ function startGame(mode) {
   celebrateScreen.classList.add("hidden");
   quizScreen.classList.add("hidden");
   quizActive = false; quizAnswered = false; currentQuiz = null;
-  spotlight.classList.add("hidden"); spotActive = false; spotlightSeen.clear();
+  spotlight.classList.add("hidden"); spotlight.classList.remove("shown");
+  spotMorph.style.display = "none"; spotFlash.style.display = "none";
+  if (spotTimer) { clearTimeout(spotTimer); spotTimer = 0; }
+  stopFx(); spotActive = false; spotlightSeen.clear();
   paused = false; running = true;
 }
 function endGame() {
