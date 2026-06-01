@@ -747,22 +747,22 @@ function factFor(el) {
 // The first time you destroy one of these in a game, a full-screen "discovered"
 // reveal plays. (Sample set of 6 — extend this map to cover the whole table.)
 const SPOTLIGHTS = {
-  C:  { img: "img/el-c.jpg", fx: "sparkle",
+  C:  { img: "img/el-c.jpg", fx: "sparkle", sting: "crystal",
         what: "Carbon is the building block of all living things — and the same element appears as soft pencil 'lead' AND as the hardest diamond.",
         real: "In the real world: pencils, diamonds, charcoal, and every plant and animal — all carbon." },
-  O:  { img: "img/el-o.jpg", fx: "bubble",
+  O:  { img: "img/el-o.jpg", fx: "bubble", sting: "airy",
         what: "Oxygen is the gas you can't live without. It makes up about 21% of the air you breathe.",
         real: "In the real world: every breath you take — and the reason a fire can burn. Divers and astronauts carry tanks of it." },
-  Ne: { img: "img/el-ne.jpg", fx: "wisp",
+  Ne: { img: "img/el-ne.jpg", fx: "wisp", sting: "whoosh",
         what: "Neon is a noble gas that glows a brilliant orange-red the instant electricity passes through it.",
         real: "In the real world: the original glow behind dazzling 'neon signs' that light up cities at night." },
-  Fe: { img: "img/el-fe.jpg", fx: "ember",
+  Fe: { img: "img/el-fe.jpg", fx: "ember", sting: "clang",
         what: "Iron is a strong, magnetic metal — and the main metal in Earth's core.",
         real: "In the real world: it becomes steel for bridges and skyscrapers, and it carries oxygen in your blood." },
-  Cu: { img: "img/el-cu.jpg", fx: "emberCu",
+  Cu: { img: "img/el-cu.jpg", fx: "emberCu", sting: "clangCu",
         what: "Copper is a reddish metal that carries electricity better than almost any affordable material.",
         real: "In the real world: the wires in your walls and chargers — and the metal that turned the Statue of Liberty green." },
-  Au: { img: "img/el-au.jpg", fx: "spark",
+  Au: { img: "img/el-au.jpg", fx: "spark", sting: "chime",
         what: "Gold is a rare, shiny metal that never rusts or tarnishes, so it stays brilliant forever.",
         real: "In the real world: treasure, jewelry, Olympic medals — and the tiny gold connectors inside your phone." }
 };
@@ -846,6 +846,90 @@ function sfxCorrect() {
     g.gain.setValueAtTime(0.18, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.25);
     o.connect(g); g.connect(actx.destination); o.start(t + d); o.stop(t + d + 0.27);
   });
+}
+
+/* ---- ELEMENT STINGS ----
+   Procedurally-synthesized signature sounds for the spotlight reveals.
+   Built from small reusable voices (metallic bells, noise sweeps, blips). */
+let noiseBuf = null;
+function getNoise() {
+  if (noiseBuf) return noiseBuf;
+  const len = Math.floor(actx.sampleRate * 1.0);
+  noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return noiseBuf;
+}
+// Inharmonic additive "bell" (ratios make it metallic/crystalline).
+function stBell(t, base, dur, vol, ratios) {
+  ratios.forEach((r, i) => {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = "sine"; o.frequency.value = base * r;
+    const v = vol / (i + 1);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(v, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + 0.05);
+  });
+}
+// Filtered noise with a frequency sweep (whooshes, hammer transients).
+function stNoise(t, dur, vol, f0, f1, q, type) {
+  const src = actx.createBufferSource(); src.buffer = getNoise();
+  const bp = actx.createBiquadFilter(); bp.type = type || "bandpass"; bp.Q.value = q || 1;
+  bp.frequency.setValueAtTime(f0, t);
+  bp.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + dur * 0.3);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(bp); bp.connect(g); g.connect(actx.destination);
+  src.start(t); src.stop(t + dur + 0.05);
+}
+// Pitch-swept tone (electric rises, bubble pops).
+function stBlip(t, f0, f1, dur, vol, type) {
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type || "sine";
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+// The per-element signature sting, fired as the spotlight reveal lands.
+function playSting(kind) {
+  if (!actx || muted) return;
+  const t = actx.currentTime;
+  if (kind === "chime") {            // Gold — bright metallic "ching"
+    stBell(t, 880, 1.6, 0.14, [1, 2.76, 5.4, 8.9]);
+    stBell(t + 0.04, 1320, 1.0, 0.08, [1, 2.8, 5.2]);
+    stBlip(t, 2000, 3200, 0.08, 0.05, "triangle");
+  } else if (kind === "crystal") {   // Carbon — crystalline ascending shimmer
+    [1568, 2093, 2637, 3136].forEach((f, i) => stBell(t + i * 0.06, f, 0.9, 0.07, [1, 2.5, 4.2]));
+  } else if (kind === "whoosh") {    // Neon — airy electric whoosh
+    stNoise(t, 0.7, 0.10, 300, 4200, 0.8, "bandpass");
+    stBlip(t, 200, 1200, 0.5, 0.05, "sawtooth");
+    stBell(t + 0.3, 1046, 1.0, 0.05, [1, 2.1, 3.7]);
+  } else if (kind === "clang") {     // Iron — heavy forge clang
+    stNoise(t, 0.08, 0.16, 1200, 400, 1, "bandpass");
+    stBell(t, 196, 1.8, 0.16, [1, 1.98, 2.94, 4.2, 5.4]);
+    stBell(t + 0.02, 294, 1.0, 0.08, [1, 2.7, 4.5]);
+  } else if (kind === "clangCu") {   // Copper — brighter, warmer ring
+    stNoise(t, 0.06, 0.10, 1600, 600, 1, "bandpass");
+    stBell(t, 330, 1.8, 0.13, [1, 2.4, 3.9, 5.1]);
+    stBell(t + 0.03, 495, 1.2, 0.07, [1, 2.76, 5.4]);
+  } else if (kind === "airy") {      // Oxygen — soft breath + bubbles
+    stNoise(t, 0.9, 0.06, 500, 1500, 0.6, "lowpass");
+    [0, 0.12, 0.26].forEach((d, i) => stBlip(t + d, 500 + i * 120, 900 + i * 150, 0.12, 0.06, "sine"));
+  }
+}
+// Smoothly duck the music under a reveal (instead of suspending the context,
+// so stings can still play), then bring it back.
+function duckMusic(on) {
+  if (!musicGain || !actx) return;
+  const t = actx.currentTime;
+  musicGain.gain.cancelScheduledValues(t);
+  musicGain.gain.setValueAtTime(musicGain.gain.value, t);
+  musicGain.gain.linearRampToValueAtTime(on ? 0 : (muted ? 0 : 0.10), t + 0.15);
 }
 
 // --- Spoken element names ---
@@ -1344,11 +1428,13 @@ function destroyElement(el, x, y, r) {
    ELEMENT SPOTLIGHT — cinematic full-screen reveal with a real-world
    themed background image. Pauses the game; tap/Continue to resume.
    ================================================================ */
-let spotOpenedAt = 0, spotTimer = 0;
+let spotOpenedAt = 0, spotTimer = 0, spotSting = null;
 function triggerSpotlight(el, sp, x, y, r) {
   spotActive = true; paused = true;
   spotOpenedAt = performance.now();
-  if (actx) actx.suspend();
+  spotSting = sp.sting;
+  // Duck the music (don't suspend the context) so the element sting can play.
+  if (actx) { if (actx.state === "suspended") actx.resume(); duckMusic(true); }
 
   const cat = CATS[categoryOf(el.n)];
   spotBg.style.backgroundImage = `url("${sp.img}")`;
@@ -1403,6 +1489,7 @@ function spotlightArrive() {
   spotMorph.style.transition = "opacity 0.25s ease";
   spotMorph.style.opacity = "0";
   fxBurst();
+  playSting(spotSting);     // the element's signature sound hits with the flash
 }
 
 function resumeFromSpotlight() {
@@ -1417,7 +1504,7 @@ function resumeFromSpotlight() {
   spotlight.classList.remove("shown");
   spotlight.classList.add("hidden");
   spotActive = false; paused = false;
-  if (actx) actx.resume();
+  if (actx) duckMusic(false);    // bring the music back up
 }
 
 /* ================================================================
@@ -1749,6 +1836,7 @@ function startGame(mode) {
   spotMorph.style.display = "none"; spotFlash.style.display = "none";
   if (spotTimer) { clearTimeout(spotTimer); spotTimer = 0; }
   stopFx(); spotActive = false; spotlightSeen.clear();
+  if (musicGain) musicGain.gain.value = muted ? 0 : 0.10;   // ensure music isn't left ducked
   paused = false; running = true;
 }
 function endGame() {
