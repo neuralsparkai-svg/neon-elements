@@ -36,7 +36,7 @@ gh api repos/neuralsparkai-svg/neon-elements/pages/builds/latest --jq .status   
 curl -s https://neuralsparkai-svg.github.io/neon-elements/index.html | grep -o '<title>[^<]*</title>'
 ```
 
-When updating docs, `README.md` and `NOTES.md` exist in **both** the root and `site/` — keep them in sync (edit `site/` copy, then `cp` to root, or vice-versa). `NOTES.md` is the maintainer cheat-sheet (links, file map, redeploy steps, done/roadmap).
+When updating docs, **four files exist in both the root and `site/` and must be kept in sync** — `README.md`, `NOTES.md`, `PROJECT_JOURNAL.md`, and `CLAUDE.md` (edit one copy, then `cp` to the other). Their roles: `README.md` = public pitch (carries a dated "What's new" changelog section near the top); `NOTES.md` = maintainer cheat-sheet (links, file map, redeploy steps, done/roadmap); `PROJECT_JOURNAL.md` = narrative history + design-decision log (the *why* behind how things are built — read it before a large change).
 
 ### Adding / optimizing element images
 
