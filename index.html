@@ -764,8 +764,52 @@ const SPOTLIGHTS = {
         real: "In the real world: the wires in your walls and chargers — and the metal that turned the Statue of Liberty green." },
   Au: { img: "img/el-au.jpg", fx: "spark", sting: "chime",
         what: "Gold is a rare, shiny metal that never rusts or tarnishes, so it stays brilliant forever.",
-        real: "In the real world: treasure, jewelry, Olympic medals — and the tiny gold connectors inside your phone." }
+        real: "In the real world: treasure, jewelry, Olympic medals — and the tiny gold connectors inside your phone." },
+  H:  { img: "img/el-h.jpg", fx: "hydrogen", sting: "whoosh",
+        what: "Hydrogen is the lightest element and the most common one in the whole universe — it powers the Sun and the stars.",
+        real: "In the real world: it fuels rockets, and joined with oxygen (H₂O) it makes the water you drink." },
+  He: { img: "img/el-he.jpg", fx: "helium", sting: "airy",
+        what: "Helium is a noble gas that's lighter than air — so light it makes balloons float up into the sky.",
+        real: "In the real world: party balloons (and squeaky voices!), and it keeps hospital MRI scanners super-cold." },
+  Li: { img: "img/el-li.jpg", fx: "lithium", sting: "zap",
+        what: "Lithium is the lightest metal — light enough to float on water — and it's brilliant at storing energy.",
+        real: "In the real world: the rechargeable battery in your phone, laptop, and electric cars." },
+  Al: { img: "img/el-al.jpg", fx: "aluminum", sting: "clangCu",
+        what: "Aluminum is a light, shiny metal that never rusts and is easy to bend and shape.",
+        real: "In the real world: soda cans, kitchen foil, airplanes, and bicycle frames." },
+  Si: { img: "img/el-si.jpg", fx: "silicon", sting: "digital",
+        what: "Silicon is a shiny gray crystal that became the 'brain' of all modern technology.",
+        real: "In the real world: the computer chips inside every phone and console — plus glass and sand." },
+  Ca: { img: "img/el-ca.jpg", fx: "calcium", sting: "crystal",
+        what: "Calcium is a soft silvery metal, but its compounds build the hardest parts of living things.",
+        real: "In the real world: your bones and teeth, seashells, coral, eggshells, and chalk." },
+  Cl: { img: "img/el-cl.jpg", fx: "chlorine", sting: "whoosh",
+        what: "Chlorine is a green-yellow gas with a sharp smell — and a powerful germ-killer.",
+        real: "In the real world: it keeps pools and drinking water clean. Joined with sodium, it makes table salt!" },
+  Ag: { img: "img/el-ag.jpg", fx: "silver", sting: "chime",
+        what: "Silver is the shiniest metal and the best conductor of electricity and heat of any element.",
+        real: "In the real world: jewelry, mirrors, and coins — and it fights germs, so it's used in bandages." },
+  Hg: { img: "img/el-hg.jpg", fx: "mercury", sting: "airy",
+        what: "Mercury is the only metal that's liquid at room temperature — a shiny silver liquid that rolls into beads.",
+        real: "In the real world: old thermometers and thermostats. It's toxic, so scientists handle it with great care." },
+  Mg: { img: "img/el-mg.jpg", fx: "magnesium", sting: "flare",
+        what: "Magnesium is a light metal that burns with a dazzling, brilliant white light.",
+        real: "In the real world: fireworks, emergency flares, and sparklers — and it's inside plants and your body." }
 };
+
+// Lazy image loading: instead of downloading every spotlight image at startup,
+// we fetch an element's image the first time that element appears in play. The
+// browser then has it cached by the time you blast it — so 16+ images add no
+// startup cost and only the ones you actually encounter are ever downloaded.
+const spotImgRequested = new Set();
+function ensureSpotImage(sym) {
+  if (spotImgRequested.has(sym)) return;
+  const sp = SPOTLIGHTS[sym];
+  if (!sp) return;
+  spotImgRequested.add(sym);
+  const im = new Image();
+  im.src = sp.img;
+}
 
 /* ================================================================
    2. AUDIO ENGINE — procedural music + SFX + spoken names.
@@ -917,9 +961,21 @@ function playSting(kind) {
     stNoise(t, 0.06, 0.10, 1600, 600, 1, "bandpass");
     stBell(t, 330, 1.8, 0.13, [1, 2.4, 3.9, 5.1]);
     stBell(t + 0.03, 495, 1.2, 0.07, [1, 2.76, 5.4]);
-  } else if (kind === "airy") {      // Oxygen — soft breath + bubbles
+  } else if (kind === "airy") {      // Oxygen / Mercury / Helium — soft breath + bubbles
     stNoise(t, 0.9, 0.06, 500, 1500, 0.6, "lowpass");
     [0, 0.12, 0.26].forEach((d, i) => stBlip(t + d, 500 + i * 120, 900 + i * 150, 0.12, 0.06, "sine"));
+  } else if (kind === "zap") {       // Lithium — electric crackle
+    stNoise(t, 0.18, 0.10, 2000, 800, 6, "bandpass");
+    stBlip(t, 1200, 200, 0.12, 0.07, "sawtooth");
+    stBlip(t + 0.06, 900, 1700, 0.10, 0.05, "square");
+    stBell(t + 0.04, 1320, 0.7, 0.06, [1, 2.1, 3.4]);
+  } else if (kind === "digital") {   // Silicon — tech arpeggio
+    [880, 1174, 1568, 1976].forEach((f, i) => stBlip(t + i * 0.05, f, f, 0.07, 0.05, "square"));
+    stBell(t + 0.22, 1568, 0.6, 0.05, [1, 2, 3]);
+  } else if (kind === "flare") {     // Magnesium — bright fizzy burst
+    stNoise(t, 0.5, 0.12, 900, 6000, 0.7, "highpass");
+    stBlip(t, 400, 2000, 0.25, 0.06, "triangle");
+    stBell(t + 0.05, 1760, 1.0, 0.07, [1, 2.7, 4.9]);
   }
 }
 // Smoothly duck the music under a reveal (instead of suspending the context,
@@ -1209,6 +1265,7 @@ function spawnOrb() {
   let el;
   if (gameMode === "find" && target && Math.random() < 0.4) el = target;
   else el = pickElement();
+  if (SPOTLIGHTS[el.s]) ensureSpotImage(el.s);   // lazy-preload this element's reveal image
 
   // In "Element Groups" mode the orb color = its category color (teaches groups).
   const color = (gameMode === "category")
@@ -1517,7 +1574,17 @@ const FX_STYLES = {
   wisp:    { kind: "wisp",   colors: ["#ff2bd6", "#b14bff", "#00eaff"] },  // Neon gas
   ember:   { kind: "ember",  colors: ["#ff7b3d", "#ffae00", "#ff4d2b"] },  // Iron (forge sparks)
   emberCu: { kind: "ember",  colors: ["#ff9a3d", "#ffb86b", "#ff6a3d"] },  // Copper
-  bubble:  { kind: "bubble", colors: ["#9fe8ff", "#ffffff", "#6fc8ff"] }   // Oxygen (rising bubbles)
+  bubble:  { kind: "bubble", colors: ["#9fe8ff", "#ffffff", "#6fc8ff"] },  // Oxygen (rising bubbles)
+  hydrogen:{ kind: "spark",  colors: ["#9fe8ff", "#7df0ff", "#ffffff"] },  // Hydrogen (blue flame)
+  helium:  { kind: "bubble", colors: ["#c9b6ff", "#9fd0ff", "#ffffff"] },  // Helium (floaty)
+  lithium: { kind: "spark",  colors: ["#36c6ff", "#7df0ff", "#b14bff"] },  // Lithium (electric)
+  aluminum:{ kind: "sparkle",colors: ["#eaf4ff", "#bcd0ff", "#9fb6e0"] },  // Aluminum (light metal glints)
+  silicon: { kind: "sparkle",colors: ["#36c6ff", "#7df0ff", "#b14bff"] },  // Silicon (circuit sparks)
+  calcium: { kind: "sparkle",colors: ["#ffffff", "#eef2ff", "#cfe0ff"] },  // Calcium (clean white)
+  chlorine:{ kind: "wisp",   colors: ["#39ff14", "#9bff5a", "#d6ff8f"] },  // Chlorine (green gas)
+  silver:  { kind: "sparkle",colors: ["#ffffff", "#dff0ff", "#b9c8e6"] },  // Silver (bright glints)
+  mercury: { kind: "bubble", colors: ["#e6ecff", "#bcd0ff", "#ffffff"] },  // Mercury (liquid beads)
+  magnesium:{kind: "spark",  colors: ["#ffffff", "#eaf4ff", "#bfe0ff"] }   // Magnesium (brilliant sparks)
 };
 let fxParticles = [], fxEmitter = null, fxRAF = 0;
 
@@ -1926,8 +1993,8 @@ quizContinueBtn.addEventListener("click", resumeFromQuiz);
 spotContinueBtn.addEventListener("click", e => { e.stopPropagation(); resumeFromSpotlight(); });
 spotlight.addEventListener("click", resumeFromSpotlight);   // tap anywhere to continue
 
-// Preload the featured spotlight images so the reveal is instant (no flash).
-Object.values(SPOTLIGHTS).forEach(sp => { const im = new Image(); im.src = sp.img; });
+// (Spotlight images are lazy-loaded per element in spawnOrb via ensureSpotImage —
+//  so the larger image set adds no startup download cost.)
 // HUD sound button toggles mute during play.
 muteBtn.addEventListener("click", () => { setMuted(!muted); refreshSettingsUI(); saveSettings(); });
 
