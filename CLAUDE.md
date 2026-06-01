@@ -44,6 +44,8 @@ The game loads ~210 KB JPEGs, not the ~2 MB source PNGs. To add a spotlight imag
 
 ## Architecture (the big picture)
 
+> **Before a large change, read `PROJECT_JOURNAL.md` first** — it's the narrative history + design-decision log explaining *why* the game is built the way it is (e.g. the non-violent "energy orb" constraint, the educational pivot, why modes are one engine). This section covers the *how*; the journal covers the *why*.
+
 The whole game is one IIFE-style `<script>` organized into numbered sections (search the section banners). The parts that span multiple concerns and aren't obvious from one function:
 
 **Rendering & coordinates.** All game logic is in **CSS pixels**. `resize()` sets the canvas backing store to `innerWidth/Height × DPR` (DPR capped at 2) and `ctx.setTransform(DPR,...)`, so drawing code never thinks about device pixels. A `unit` scalar (derived from screen size) multiplies object radii/speeds so the game feels consistent from phone to desktop. Orbs are pre-rendered once to cached offscreen sprites (`makeOrbSprite`, also DPR-aware) and blitted each frame — this is the main performance strategy; don't draw orb text/glow per-frame.
