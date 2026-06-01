@@ -1,7 +1,7 @@
 {
-  "name": "Neon Elements — Periodic Table Blaster",
-  "short_name": "Neon Elements",
-  "description": "A neon arcade game: blast glowing periodic-table elements, hear them spoken, and learn fun facts.",
+  "name": "Atomica — Blast the Elements to Life",
+  "short_name": "Atomica",
+  "description": "Atomica is a neon arcade game that teaches the periodic table. Blast glowing element orbs, hear every element spoken aloud, learn fun facts, and explore all 118 elements.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

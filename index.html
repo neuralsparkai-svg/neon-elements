@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>NEON ELEMENTS — Periodic Table Blaster!</title>
+<title>Atomica — Blast the Elements to Life</title>
 <!-- Install / Add-to-Home-Screen: makes it launch full-screen like a native app -->
 <meta name="theme-color" content="#05030f" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Neon Elements" />
-<meta name="description" content="A neon arcade game: blast glowing periodic-table elements, hear them spoken, and learn fun facts." />
+<meta name="apple-mobile-web-app-title" content="Atomica" />
+<meta name="description" content="Atomica — blast glowing periodic-table elements to life. A neon arcade game that teaches the periodic table: hear every element spoken, learn fun facts, and explore all 118." />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="icon" type="image/png" href="icon-192.png" />
@@ -162,6 +162,10 @@
   @keyframes pulse {
     0%,100% { filter: drop-shadow(0 0 14px rgba(150,90,255,0.6)); }
     50%     { filter: drop-shadow(0 0 30px rgba(0,234,255,0.9)); }
+  }
+  .tagline {
+    font-size: clamp(13px, 3.4vw, 17px); letter-spacing: 4px; text-transform: uppercase;
+    color: #ff7bf0; text-shadow: 0 0 14px #ff2bd6; margin-top: -6px; font-weight: bold;
   }
   .subtitle { font-size: clamp(13px, 3.6vw, 16px); color: #c9bdff; max-width: 600px; line-height: 1.6; }
   .controls { display: flex; gap: 22px; color: #bdecff; font-size: 14px; flex-wrap: wrap; justify-content: center; }
@@ -358,7 +362,8 @@
 
 <!-- START / MODE-SELECT SCREEN -->
 <div id="startScreen" class="overlay">
-  <div class="title">NEON ELEMENTS</div>
+  <div class="title">ATOMICA</div>
+  <div class="tagline">Blast the elements to life</div>
   <div class="subtitle">Pick a game mode! Blast glowing energy orbs that each carry a real periodic-table element — hear them spoken, learn fun facts, and explore the elements.</div>
   <div class="mode-grid">
     <div class="mode-card" data-mode="facts">
