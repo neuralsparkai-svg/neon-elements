@@ -11,6 +11,10 @@
 </p>
 
 <p align="center">
+  <b>🟢 Status: Live</b> &nbsp;•&nbsp; Hosted on GitHub Pages &nbsp;•&nbsp; Single-file PWA &nbsp;•&nbsp; Updated June 2026
+</p>
+
+<p align="center">
   <img src="qr.png" alt="Scan to play Atomica" width="160"><br>
   <sub>Scan to play on your phone</sub>
 </p>
